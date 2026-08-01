@@ -1,0 +1,66 @@
+topics:
+  - name: search-events
+    partitions: 3
+    replication_factor: 1
+    partition_key: customer_id
+    retention_days: 7
+
+  - name: product-view-events
+    partitions: 3
+    replication_factor: 1
+    partition_key: customer_id
+    retention_days: 7
+
+  - name: cart-events
+    partitions: 3
+    replication_factor: 1
+    partition_key: customer_id
+    retention_days: 7
+
+  - name: checkout-events
+    partitions: 3
+    replication_factor: 1
+    partition_key: order_id
+    retention_days: 7
+
+  - name: payment-events
+    partitions: 3
+    replication_factor: 1
+    partition_key: order_id
+    retention_days: 7
+
+  - name: order-events
+    partitions: 3
+    replication_factor: 1
+    partition_key: order_id
+    retention_days: 7
+
+  - name: review-events
+    partitions: 3
+    replication_factor: 1
+    partition_key: product_id
+    retention_days: 7
+
+  - name: inventory-events
+    partitions: 3
+    replication_factor: 1
+    partition_key: product_id
+    retention_days: 7
+
+  - name: fraud-alerts
+    partitions: 2
+    replication_factor: 1
+    partition_key: alert_id
+    retention_days: 30
+
+  - name: system-metrics
+    partitions: 1
+    replication_factor: 1
+    partition_key: metric_name
+    retention_days: 3
+
+  - name: dead-letter-events
+    partitions: 2
+    replication_factor: 1
+    partition_key: event_type
+    retention_days: 30

@@ -1,0 +1,27 @@
+# Core Big Data & Stream Processing
+pyspark>=3.4.0
+apache-flink>=1.17.0; sys_platform == 'linux' or sys_platform == 'darwin'
+confluent-kafka>=2.2.0
+kafka-python>=2.0.2
+
+# Database & Data Handling
+pandas>=2.0.0
+pyarrow>=12.0.0
+psycopg2-binary>=2.9.7
+SQLAlchemy>=2.0.19
+python-dotenv>=1.0.0
+
+# Data Generation & Simulation
+Faker>=19.3.0
+pyyaml>=6.0
+
+# Dashboard & Interactive Visualization
+streamlit>=1.26.0
+plotly>=5.15.0
+altair>=5.0.1
+streamlit-autorefresh>=1.0.1
+
+# Utility & Networking
+requests>=2.31.0
+tqdm>=4.65.0
+colorama>=0.4.6

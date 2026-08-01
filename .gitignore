@@ -1,0 +1,104 @@
+# ==============================================================================
+# Git Ignore Configuration for Real-Time E-Commerce Big Data Platform
+# ==============================================================================
+
+# 1. Python & Virtual Environments
+venv/
+.env/
+env/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 2. Big Data Storage & Data Lake Generated Streams
+# Ignore large Parquet, JSON lines, and CSV streams to avoid GitHub 100MB file limit
+data_lake/**/*.jsonl
+data_lake/**/*.parquet
+data_lake/**/*.csv
+datasets/master_data/*.parquet
+datasets/master_data/*.json
+*.db
+*.sqlite3
+
+# Ensure empty folder architectures are retained in Git via keep markers!
+!data_lake/**/.keep
+!*.keep
+
+# 3. Raw Kaggle Dataset Files (User should supply locally or download via Kaggle API)
+kaggle_data/*.csv
+kaggle_data/*.zip
+!kaggle_data/.keep
+
+# 4. Docker & Local Database Volume Mounts
+docker/postgres_data/
+docker/kafka_data/
+docker/zookeeper_data/
+*.log
+logs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 5. IDEs and Operating System System Files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 6. Spark / Flink Checkpoint & Temporary Folders
+derby.log
+metastore_db/
+checkpoint/
+checkpoints/
+*.crc
+
+# ==============================================================================
+# Hadoop / HDFS
+# ==============================================================================
+*.lck
+
+# Kafka
+/tmp/kafka-logs/
+/kafka-logs/
+
+# Prometheus & Grafana
+prometheus-data/
+grafana-data/
+
+# Airflow
+airflow/logs/
+airflow/plugins/__pycache__/
+
+# IntelliJ
+out/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# macOS
+.AppleDouble
+.LSOverride

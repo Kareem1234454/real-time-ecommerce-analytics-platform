@@ -1,0 +1,32 @@
+simulation:
+  mode: "normal_day" # Options: normal_day, black_friday, flash_sale
+  target_events_per_second: 10
+  batch_size: 5
+  max_concurrent_sessions: 50
+
+probabilities:
+  cart_addition: 0.65
+  cart_abandonment: 0.25
+  checkout_completion: 0.85
+  payment_success: 0.94
+  review_submission: 0.40
+  fraud_anomaly_injection: 0.03
+
+scenarios:
+  normal_day:
+    rate_multiplier: 1.0
+    fraud_probability: 0.02
+    abandonment_multiplier: 1.0
+  black_friday:
+    rate_multiplier: 5.0
+    fraud_probability: 0.06
+    abandonment_multiplier: 0.8
+  flash_sale:
+    rate_multiplier: 3.5
+    fraud_probability: 0.04
+    abandonment_multiplier: 0.6
+
+kafka:
+  bootstrap_servers: "localhost:9092"
+  enable_stdout_log: true
+  write_to_bronze_lake: true

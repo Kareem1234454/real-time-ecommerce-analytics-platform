@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    container_name: zookeeper-node
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.2
+    container_name: kafka-broker
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-meta
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: ecommerce_meta
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./config/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  flink-jobmanager:
+    image: flink:1.17.0-scala_2.12
+    container_name: flink-jm
+    command: jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
+    ports:
+      - "8081:8081"
+    volumes:
+      - ../flink:/opt/flink/usrlib
+      - ../datasets:/opt/flink/datasets
+      - ../data_lake:/opt/flink/data_lake
+    restart: unless-stopped
+
+  flink-taskmanager:
+    image: flink:1.17.0-scala_2.12
+    container_name: flink-tm
+    command: taskmanager
+    depends_on:
+      - flink-jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
+      - TASK_MANAGER_NUMBER_OF_TASK_SLOTS=4
+    volumes:
+      - ../flink:/opt/flink/usrlib
+      - ../datasets:/opt/flink/datasets
+      - ../data_lake:/opt/flink/data_lake
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus-monitor
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: grafana-dashboard
+    depends_on:
+      - prometheus
+      - postgres
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./config/grafana_datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
