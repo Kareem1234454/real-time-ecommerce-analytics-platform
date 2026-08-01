@@ -18,19 +18,19 @@ def compute_streaming_kpi_windows(root_dir="."):
     year_part = f"year={now.year}"
     time_part = f"year={now.year}/month={now.month:02d}/day={now.day:02d}/hour={now.hour:02d}"
     
-    orders_dir = silver_dir / "enriched-orders" / time_part
-    if not orders_dir.exists() or not any(orders_dir.glob("*.parquet")):
-        bronze_ord = bronze_dir / "order-events" / time_part
-        if bronze_ord.exists() and any(bronze_ord.glob("*.jsonl")):
+    silver_orders = list((silver_dir / "enriched-orders").rglob("*.parquet"))
+    if not silver_orders:
+        bronze_ord = list((bronze_dir / "order-events").rglob("*.jsonl"))
+        if bronze_ord:
             records = []
-            for f in bronze_ord.glob("*.jsonl"):
-                with open(f, "r") as json_f:
+            for f in bronze_ord:
+                with open(f, "r", encoding="utf-8") as json_f:
                     records.extend([json.loads(x) for x in json_f if x.strip()])
             df = pd.DataFrame(records)
         else:
             df = pd.DataFrame()
     else:
-        df = pd.concat([pd.read_parquet(p) for p in orders_dir.glob("*.parquet")])
+        df = pd.concat([pd.read_parquet(p) for p in silver_orders])
         
     if not df.empty and "total_amount" in df.columns:
         total_rev = round(df["total_amount"].astype(float).sum(), 2)

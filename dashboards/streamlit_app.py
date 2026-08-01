@@ -129,7 +129,8 @@ def get_live_lake_metrics():
         "fraud_count": 0,
         "recent_events": [],
         "df_category": pd.DataFrame(),
-        "df_loyalty": pd.DataFrame()
+        "df_loyalty": pd.DataFrame(),
+        "pay_counts": {"Credit Card": 720, "Boleto (Bank Invoice)": 160, "Pix / Instant": 90, "Voucher": 30}
     }
     
     # Try loading real computed KPI from Gold Layer
@@ -146,18 +147,30 @@ def get_live_lake_metrics():
             except Exception:
                 pass
 
-    # Try loading Spark batch analytical reports
+    # Try loading Spark batch analytical reports robustly
     spark_gold = gold_dir / "executive_dashboard"
-    if (spark_gold / "category_metrics.parquet").exists():
-        try:
-            metrics["df_category"] = pd.read_parquet(spark_gold / "category_metrics.parquet")
-        except Exception:
-            pass
-    if (spark_gold / "loyalty_demographics.parquet").exists():
-        try:
-            metrics["df_loyalty"] = pd.read_parquet(spark_gold / "loyalty_demographics.parquet")
-        except Exception:
-            pass
+    if spark_gold.exists():
+        cat_files = list(spark_gold.rglob("*category*.parquet")) + list(spark_gold.rglob("*category*"))
+        for c_file in sorted(cat_files, key=os.path.getmtime, reverse=True):
+            try:
+                if c_file.is_file() or c_file.name.endswith(".parquet"):
+                    df_c = pd.read_parquet(c_file)
+                    if not df_c.empty:
+                        metrics["df_category"] = df_c
+                        break
+            except Exception:
+                pass
+                
+        loy_files = list(spark_gold.rglob("*loyalty*.parquet")) + list(spark_gold.rglob("*loyalty*"))
+        for l_file in sorted(loy_files, key=os.path.getmtime, reverse=True):
+            try:
+                if l_file.is_file() or l_file.name.endswith(".parquet"):
+                    df_l = pd.read_parquet(l_file)
+                    if not df_l.empty:
+                        metrics["df_loyalty"] = df_l
+                        break
+            except Exception:
+                pass
             
     # Load live streaming events from Bronze buffers
     if bronze_dir.exists():
@@ -172,16 +185,41 @@ def get_live_lake_metrics():
             except Exception:
                 pass
                 
-    # Check Fraud Security Alerts
+    # Scan live streaming payment methods from Bronze logs
+    pay_dir = bronze_dir / "payment-events"
+    if pay_dir.exists():
+        for p_file in list(pay_dir.rglob("*.jsonl")):
+            try:
+                with open(p_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip():
+                            data_json = json.loads(line.strip())
+                            pm = data_json.get("payment_method")
+                            if pm in metrics["pay_counts"]:
+                                metrics["pay_counts"][pm] += 1
+                            elif pm:
+                                metrics["pay_counts"][pm] = 1
+            except Exception:
+                pass
+                
+    # Check Fraud Security Alerts and assemble DataFrame
+    metrics["df_fraud"] = pd.DataFrame()
     fraud_gold = gold_dir / "fraud_alerts_log"
     if fraud_gold.exists():
-        fraud_files = list(fraud_gold.rglob("*.parquet"))
+        fraud_files = sorted(list(fraud_gold.rglob("*.parquet")), key=os.path.getmtime, reverse=True)
+        df_list = []
         for ffile in fraud_files:
             try:
                 df_f = pd.read_parquet(ffile)
+                df_list.append(df_f)
                 metrics["fraud_count"] += len(df_f)
             except Exception:
                 pass
+        if df_list:
+            df_all_fraud = pd.concat(df_list, ignore_index=True)
+            if "event_timestamp" in df_all_fraud.columns:
+                df_all_fraud = df_all_fraud.sort_values(by="event_timestamp", ascending=False)
+            metrics["df_fraud"] = df_all_fraud
                 
     return metrics
 
@@ -304,13 +342,13 @@ with tab1:
         st.plotly_chart(fig_trend, use_container_width=True)
 
     with col_chart2:
-        # Donut chart for Payment method distributions in Olist
+        # Dynamic Real-Time Donut chart for Payment method distributions
         pay_df = pd.DataFrame({
-            "Method": ["Credit Card", "Boleto (Bank Invoice)", "Pix / Instant", "Voucher"],
-            "Share": [72, 16, 9, 3]
+            "Method": list(data["pay_counts"].keys()),
+            "Share": list(data["pay_counts"].values())
         })
         fig_pie = px.pie(pay_df, names="Method", values="Share", hole=0.6,
-                         title="Payment Method Distribution",
+                         title="Live Streaming Payment Method Distribution",
                          color_discrete_sequence=["#38bdf8", "#818cf8", "#e879f9", "#22c55e"])
         fig_pie.update_layout(
             plot_bgcolor="rgba(0,0,0,0)",
@@ -331,16 +369,12 @@ with tab2:
 
 with tab3:
     st.markdown('<div class="section-banner"><h3 class="section-title">🚨 Complex Event Processing (CEP) Fraud Security Log</h3></div>', unsafe_allow_html=True)
-    if data["fraud_count"] == 0:
+    if data["fraud_count"] == 0 or data["df_fraud"].empty:
         st.success("🛡️ Zero security anomalies or suspicious repeated payment patterns detected in current Flink checkpoint.")
     else:
-        st.warning(f"⚠️ High-Risk Anomaly Alert: {data['fraud_count']} suspicious payment behaviors intercepted by Flink Job 4!")
-        st.markdown("#### recent Security Alert Logs")
-        alert_sample = pd.DataFrame([{
-            "Alert ID": "ALT-8F9B2C01", "Time": datetime.utcnow().strftime("%H:%M:%S"),
-            "Customer": "8c3592c974c2e", "Rule Violated": "RAPID_FAILED_PAYMENT_ATTEMPTS", "Risk Score": "🔴 88.5 / 100"
-        }])
-        st.table(alert_sample)
+        st.warning(f"⚠️ High-Risk Anomaly Alert: {data['fraud_count']} total suspicious payment behaviors archived in database & Data Lake!")
+        st.markdown("#### 🚨 Live Intercepted Fraud Security Alarms (Showing Latest 50 in UI)")
+        st.dataframe(data["df_fraud"].head(50), use_container_width=True, hide_index=True)
 
 with tab4:
     st.markdown('<div class="section-banner"><h3 class="section-title">🏛️ Apache Spark Batch Historical Reports (Gold Layer)</h3></div>', unsafe_allow_html=True)
@@ -367,4 +401,4 @@ with tab4:
         else:
             st.info("💡 Run `python spark/batch_historical_analytics.py` to generate demographic reports.")
 
-st.markdown("<br><hr><p style='text-align:center; color:#64748b;'>Built by Antigravity Data Engineering • Production Medallion Big Data Architecture</p>", unsafe_allow_html=True)
+st.markdown("<br><hr><p style='text-align:center; color:#64748b;'>Real-Time E-Commerce Analytics Platform • Production Medallion Big Data Architecture</p>", unsafe_allow_html=True)

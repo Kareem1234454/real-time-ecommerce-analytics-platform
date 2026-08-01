@@ -55,9 +55,10 @@ python flink/job_3_kpi_aggregations.py
 python flink/job_4_fraud_detection.py
 echo.
 
-:: 8. Start Live Generator and Streamlit Real-Time Dashboard
-echo [8/8] Starting Real-Time Event Simulation and Interactive Web Dashboard...
+:: 8. Start Live Generator, Flink Streaming Workers, and Streamlit Dashboard
+echo [8/8] Starting Real-Time Event Simulation, Flink Streaming Workers, and Interactive Web Dashboard...
 start "Live E-Commerce Event Generator Engine" cmd /k "call venv\Scripts\activate.bat && python generator/run_generator.py"
+start "Apache Flink Live Streaming & CEP Workers" cmd /k "call venv\Scripts\activate.bat && python flink/run_streaming_workers.py"
 start "Streamlit Live Analytics Dashboard" cmd /c "call venv\Scripts\activate.bat && streamlit run dashboards/streamlit_app.py"
 
 echo.
