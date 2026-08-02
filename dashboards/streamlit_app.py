@@ -364,8 +364,11 @@ with tab2:
         st.info("📡 Listening to Kafka topic streams... Run `python generator/run_generator.py` to broadcast customer journeys!")
     else:
         df_feed = pd.DataFrame(data["recent_events"][:15])
-        cols = [c for c in ["event_timestamp", "event_type", "customer_id", "order_id", "amount", "unit_price", "source"] if c in df_feed.columns]
-        st.dataframe(df_feed[cols], use_container_width=True, hide_index=True)
+        required_cols = ["event_timestamp", "event_type", "customer_id", "order_id", "amount", "source"]
+        for c in required_cols:
+            if c not in df_feed.columns:
+                df_feed[c] = "None"
+        st.dataframe(df_feed[required_cols], use_container_width=True, hide_index=True)
 
 with tab3:
     st.markdown('<div class="section-banner"><h3 class="section-title">🚨 Complex Event Processing (CEP) Fraud Security Log</h3></div>', unsafe_allow_html=True)
