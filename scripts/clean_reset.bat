@@ -18,8 +18,16 @@ pause >nul
 
 cd /d "%~dp0\.."
 
-:: 1. Stop Docker and destroy persistent volume mounts (-v wipes DB volumes)
-echo [1/4] Stopping Docker containers and wiping database volume caches...
+:: 1. Terminate background popup windows automatically
+echo [1/5] Terminating active streaming command windows (Generator, Flink Workers, Streamlit)...
+taskkill /FI "WINDOWTITLE eq Live E-Commerce Event Generator Engine*" /F /T >nul 2>&1
+taskkill /FI "WINDOWTITLE eq Apache Flink Live Streaming & CEP Workers*" /F /T >nul 2>&1
+taskkill /FI "WINDOWTITLE eq Streamlit Live Analytics Dashboard*" /F /T >nul 2>&1
+echo [SUCCESS] All streaming loops and UI windows shut down!
+echo.
+
+:: 2. Stop Docker and destroy persistent volume mounts (-v wipes DB volumes)
+echo [2/5] Stopping Docker containers and wiping database volume caches...
 cd docker
 docker-compose down -v --remove-orphans
 cd ..
