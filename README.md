@@ -74,8 +74,15 @@ This allows the project to evolve toward fully distributed Flink execution on Li
 
 ---
 
-## 🚀 One-Click Startup (Windows)
+## 🚀 Quickstart & Setup (Windows)
 
+### 1. Download Master Datasets
+Download the official **Olist Brazilian E-Commerce Dataset** from Kaggle:
+👉 [https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)
+
+Extract the downloaded CSV files into your local repository's **`kaggle_data/`** directory.
+
+### 2. Launch Platform & Infrastructure
 1. Ensure **Docker Desktop** is active and running.
 2. Open terminal in the root directory and run our automated execution script:
    ```cmd
