@@ -89,10 +89,10 @@ The architecture was designed to satisfy the following requirements:
                       │
       ┌───────────────┼────────────────────────┐
       ▼               ▼                        ▼
-   Hadoop HDFS     PostgreSQL             Alert Topic
+  Medallion Lake   PostgreSQL             Alert Topic
       │
       ▼
- Apache Hive
+ PostgreSQL & Spark
       │
       ▼
  Apache Spark
@@ -195,40 +195,27 @@ Flink performs processing continuously with very low latency.
 
 ---
 
-## 4.4 Hadoop HDFS
+## 4.4 Medallion Data Lakehouse
 
-HDFS stores all business events.
-
-Data is divided into multiple logical layers.
+The Data Lakehouse stores all business events across three logical tiers:
 
 ```
-raw/
+bronze/ (Raw immutable JSONL events)
 
-processed/
+silver/ (Cleansed & enriched Parquet)
 
-analytics/
-
-archive/
+gold/ (Aggregated analytical executive tables)
 ```
 
-Each dataset is partitioned by:
-
-* Year
-* Month
-* Day
-* Hour
-
-This improves query performance and simplifies long-term storage.
+Each dataset is partitioned by Year, Month, Day, and Hour to improve query performance and simplify storage.
 
 ---
 
-## 4.5 Apache Hive
+## 4.5 PostgreSQL & Streamlit Operational Analytics
 
-Hive exposes SQL tables over files stored in HDFS.
+PostgreSQL houses structured reference metadata catalogs and instant, sub-second security fraud alarms.
 
-The project uses External Tables so data remains inside HDFS.
-
-Hive enables analysts to execute SQL queries without moving the data.
+Streamlit connects directly to PostgreSQL (with fail-safe fallback to Gold Parquet files) for uninterrupted real-time visual monitoring.
 
 ---
 
@@ -338,11 +325,11 @@ Processed Stream
 
 ↓
 
-HDFS
+Medallion Lakehouse
 
 ↓
 
-Hive
+PostgreSQL & Spark
 
 ↓
 
@@ -391,13 +378,13 @@ Aggregated
 
 ## Stage 6
 
-Stored in HDFS
+Stored in Medallion Lakehouse
 
 ↓
 
 ## Stage 7
 
-Queried through Hive
+Queried through PostgreSQL & Spark
 
 ↓
 
@@ -510,10 +497,10 @@ Flink
 * Backpressure
 * Job Health
 
-HDFS
+Data Lakehouse
 
 * Storage Usage
-* Replication Status
+* Partition Status
 
 Spark
 
@@ -541,11 +528,9 @@ Docker Compose
 
 ├── Flink TaskManager
 
-├── Hadoop NameNode
+├── Medallion Parquet Data Lake
 
-├── Hadoop DataNode
-
-├── Hive
+├── Streamlit Executive Analytics UI
 
 ├── PostgreSQL
 
@@ -570,7 +555,7 @@ Examples:
 * Add Flink TaskManagers
 * Increase Kafka Partitions
 * Add Spark Workers
-* Add Hadoop DataNodes
+* Expand Lakehouse Partition Storage
 
 Each service can scale independently.
 
@@ -590,9 +575,9 @@ Flink
 * Checkpointing
 * Stateful Recovery
 
-HDFS
+Medallion Data Lakehouse
 
-* Block Replication
+* Snappy Columnar Compression & Partition Resilience
 
 Docker
 

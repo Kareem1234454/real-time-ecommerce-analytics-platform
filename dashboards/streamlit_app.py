@@ -10,6 +10,11 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
+
 # Ensure proper page layout and visual aesthetics
 st.set_page_config(
     page_title="Real-Time E-Commerce Big Data Platform",
@@ -202,24 +207,41 @@ def get_live_lake_metrics():
             except Exception:
                 pass
                 
-    # Check Fraud Security Alerts and assemble DataFrame
+    # 1. Try fetching real-time Fraud Security Alerts directly from PostgreSQL OLTP Database
     metrics["df_fraud"] = pd.DataFrame()
-    fraud_gold = gold_dir / "fraud_alerts_log"
-    if fraud_gold.exists():
-        fraud_files = sorted(list(fraud_gold.rglob("*.parquet")), key=os.path.getmtime, reverse=True)
-        df_list = []
-        for ffile in fraud_files:
-            try:
-                df_f = pd.read_parquet(ffile)
-                df_list.append(df_f)
-                metrics["fraud_count"] += len(df_f)
-            except Exception:
-                pass
-        if df_list:
-            df_all_fraud = pd.concat(df_list, ignore_index=True)
-            if "event_timestamp" in df_all_fraud.columns:
-                df_all_fraud = df_all_fraud.sort_values(by="event_timestamp", ascending=False)
-            metrics["df_fraud"] = df_all_fraud
+    db_url = os.getenv("DATABASE_URL", "postgresql://admin:admin123@localhost:5432/ecommerce_meta")
+    loaded_from_pg = False
+    if psycopg2 is not None:
+        try:
+            conn = psycopg2.connect(db_url, connect_timeout=1)
+            query = "SELECT alert_id, event_timestamp, customer_id, order_id, risk_score, rule_violated, details FROM fraud_alarms ORDER BY event_timestamp DESC LIMIT 100;"
+            df_pg = pd.read_sql_query(query, conn)
+            conn.close()
+            if not df_pg.empty:
+                metrics["df_fraud"] = df_pg
+                metrics["fraud_count"] = len(df_pg)
+                loaded_from_pg = True
+        except Exception:
+            loaded_from_pg = False
+
+    # 2. Resilient Medallion Failover: If PostgreSQL is offline or empty, fall back to Gold Parquet Lakehouse files
+    if not loaded_from_pg:
+        fraud_gold = gold_dir / "fraud_alerts_log"
+        if fraud_gold.exists():
+            fraud_files = sorted(list(fraud_gold.rglob("*.parquet")), key=os.path.getmtime, reverse=True)
+            df_list = []
+            for ffile in fraud_files:
+                try:
+                    df_f = pd.read_parquet(ffile)
+                    df_list.append(df_f)
+                    metrics["fraud_count"] += len(df_f)
+                except Exception:
+                    pass
+            if df_list:
+                df_all_fraud = pd.concat(df_list, ignore_index=True)
+                if "event_timestamp" in df_all_fraud.columns:
+                    df_all_fraud = df_all_fraud.sort_values(by="event_timestamp", ascending=False)
+                metrics["df_fraud"] = df_all_fraud
                 
     return metrics
 
@@ -249,7 +271,7 @@ st.markdown("""
             Real-Time E-Commerce Analytics Platform
         </h1>
         <p style="color:#94a3b8; font-size:1.1rem; margin-top:6px;">
-            Powered by Apache Kafka, Apache Flink, Medallion HDFS Data Lake & Apache Spark
+            Powered by Apache Kafka, Apache Flink, Medallion Parquet Data Lake & Apache Spark
         </p>
     </div>
     <div style="background:#1e293b; padding:10px 18px; border-radius:10px; border:1px solid #334155;">
@@ -315,7 +337,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📈 Executive KPI Command Center", 
     "⚡ Live Kafka Event Ticker", 
     "🚨 Fraud & Security Ops Center", 
-    "🏛️ Apache Spark & Hive Historical Analytics"
+    "🏛️ Apache Spark Historical Analytics"
 ])
 
 with tab1:

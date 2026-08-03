@@ -71,7 +71,7 @@ The platform combines static reference data with continuously generated streamin
                   Apache Flink
                        │
                        ▼
-                 Hadoop HDFS
+                 Medallion Parquet Lake
                        │
                        ▼
               Historical Data Layer
@@ -485,7 +485,7 @@ Examples:
 
 # 12. Partitioning Strategy
 
-All datasets stored in Hadoop HDFS are partitioned using time-based directories.
+All datasets stored in the Medallion Parquet Data Lake are partitioned using time-based directories.
 
 Example:
 
@@ -540,11 +540,11 @@ Processing
 
 ↓
 
-HDFS (Parquet)
+Medallion Lake (Parquet)
 
 ↓
 
-Apache Hive
+PostgreSQL & Spark
 
 ↓
 

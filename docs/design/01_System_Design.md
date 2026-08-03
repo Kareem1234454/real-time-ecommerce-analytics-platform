@@ -167,10 +167,10 @@ A failure in one service should not stop the entire platform.
    Apache Flink      Alert Engine      Audit Consumer
          │
          ▼
-      Data Lake
+ Medallion Parquet Lake
          │
          ▼
-      Apache Hive
+    PostgreSQL & DBs
          │
          ▼
      Apache Spark
@@ -189,11 +189,10 @@ The platform is composed of independent services.
 |----------|----------------|
 | Event Generator | Creates customer events |
 | Kafka | Event transport |
-| Flink | Stream processing |
-| HDFS | Data Lake |
-| Hive | SQL Layer |
-| Spark | Historical analytics |
-| PostgreSQL | Reference data |
+| Flink & Workers | Stream processing |
+| Medallion Lake | Columnar Data Lake |
+| PostgreSQL | Operational DB & Reference data |
+| Spark | Historical batch analytics |
 | Grafana | Dashboards |
 | Prometheus | Monitoring |
 
@@ -219,15 +218,15 @@ Processes business logic.
 
 ---
 
-## HDFS
+## Medallion Data Lakehouse
 
-Stores immutable datasets.
+Stores immutable JSONL & Parquet datasets.
 
 ---
 
-## Hive
+## PostgreSQL & Streamlit
 
-Provides SQL access.
+Provides real-time SQL alerting & UI dashboards.
 
 ---
 
@@ -336,9 +335,9 @@ Increase Workers
 
 ---
 
-## HDFS
+## Medallion Data Lake
 
-Increase DataNodes
+Expand Local & Cloud Object Storage
 
 ---
 
@@ -362,9 +361,9 @@ Flink
 - Checkpointing
 - State recovery
 
-HDFS
+Medallion Lakehouse
 
-- Block replication
+- Columnar Parquet compression & durability
 
 Docker
 
@@ -406,15 +405,15 @@ Low-latency stateful stream processing.
 
 ---
 
-### Why HDFS?
+### Why Medallion Data Lakehouse?
 
-Distributed storage for large datasets.
+High-performance columnar storage for large datasets without JVM filesystem bloat.
 
 ---
 
-### Why Hive?
+### Why PostgreSQL & Spark?
 
-SQL interface for the Data Lake.
+Sub-second relational queries for alerts & high-throughput historical analytical engines.
 
 ---
 

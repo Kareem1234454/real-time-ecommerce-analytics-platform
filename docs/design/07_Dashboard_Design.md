@@ -73,7 +73,7 @@ Kafka
 Apache Flink
    │
    ▼
-HDFS + Hive
+Medallion Data Lake + Postgres
    │
    ▼
 Apache Spark
@@ -183,7 +183,7 @@ Tracks platform activity.
 
 * Kafka Throughput
 * Flink Processing Rate
-* HDFS Storage Usage
+* Data Lake Storage Usage
 * Failed Events
 * DLQ Event Count
 
@@ -227,7 +227,7 @@ Monitors infrastructure health.
 * Disk Utilization
 * Kafka Broker Status
 * Flink Job Health
-* HDFS DataNode Status
+* Medallion Partition Status
 
 This dashboard is primarily intended for platform administrators.
 

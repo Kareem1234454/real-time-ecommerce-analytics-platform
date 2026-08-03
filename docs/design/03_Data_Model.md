@@ -345,7 +345,7 @@ Examples:
 * Conversion Rate
 * Cart Abandonment Rate
 
-These datasets are stored in HDFS as Parquet files and queried using Hive or Spark.
+These datasets are stored in the Medallion Parquet Data Lake and queried using PostgreSQL and Spark.
 
 ---
 

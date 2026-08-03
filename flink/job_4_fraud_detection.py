@@ -67,6 +67,17 @@ def detect_fraudulent_transactions(db_url="postgresql://admin:admin123@localhost
             conn = psycopg2.connect(db_url)
             conn.autocommit = True
             cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS fraud_alarms (
+                    alert_id VARCHAR(100) PRIMARY KEY,
+                    event_timestamp VARCHAR(50) NOT NULL,
+                    customer_id VARCHAR(100),
+                    order_id VARCHAR(100),
+                    risk_score FLOAT NOT NULL,
+                    rule_violated VARCHAR(200) NOT NULL,
+                    details TEXT
+                );
+            """)
             for alm in fraud_alarms:
                 cursor.execute("""
                     INSERT INTO fraud_alarms (alert_id, event_timestamp, customer_id, order_id, risk_score, rule_violated, details)

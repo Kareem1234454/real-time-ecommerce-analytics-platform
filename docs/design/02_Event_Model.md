@@ -81,10 +81,10 @@ Consumed by Flink
 Enriched
     │
     ▼
-Stored in HDFS
+Stored in Medallion Lakehouse
     │
     ▼
-Queried by Hive
+Queried by PostgreSQL & Spark
     │
     ▼
 Analyzed by Spark

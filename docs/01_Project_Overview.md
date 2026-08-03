@@ -1,6 +1,6 @@
 # Real-Time E-Commerce Analytics Platform
 
-> A production-inspired Big Data platform for processing and analyzing e-commerce events in real time using Apache Kafka, Apache Flink, Hadoop HDFS, Apache Hive, Apache Spark, Docker, and Grafana.
+> A production-inspired Big Data platform for processing and analyzing e-commerce events in real time using Apache Kafka, Apache Flink, Medallion Parquet Data Lake, Apache Spark, PostgreSQL, Docker, and Grafana.
 
 ---
 
@@ -31,7 +31,7 @@ Traditional batch processing systems cannot provide immediate insights into thes
 
 This project demonstrates how modern Big Data technologies can be combined to build a scalable real-time analytics platform capable of processing thousands of events per second.
 
-The platform simulates a real-world e-commerce environment by generating realistic customer activities, streaming them through Apache Kafka, processing them with Apache Flink, storing them in Hadoop HDFS, organizing them using Apache Hive, performing historical analytics using Apache Spark, and visualizing business metrics through interactive dashboards.
+The platform simulates a real-world e-commerce environment by generating realistic customer activities, streaming them through Apache Kafka, processing them with Apache Flink, storing them in a Medallion Parquet Data Lake, performing historical analytics using Apache Spark, archiving fraud anomalies in PostgreSQL, and visualizing business metrics through interactive dashboards.
 
 ---
 
@@ -84,11 +84,11 @@ Apache Flink consumes the events, validates them, enriches them, and performs st
 
 ↓
 
-Processed data is written into Hadoop HDFS using the Parquet format.
+Processed data is written into the Medallion Parquet Data Lake.
 
 ↓
 
-Apache Hive provides SQL access to the stored datasets.
+PostgreSQL and Apache Spark provide analytical queries over the stored datasets.
 
 ↓
 
@@ -133,9 +133,9 @@ Every action generates an event that becomes part of the streaming pipeline.
 
 ## Storage
 
-- Hadoop HDFS
-- Apache Hive
-- Parquet File Format
+- Medallion Parquet Data Lake
+- PostgreSQL Operational DB
+- Parquet & JSON-Lines Formats
 - Partitioned datasets
 
 ## Batch Analytics
@@ -157,9 +157,9 @@ Every action generates an event that becomes part of the streaming pipeline.
 |----------|------------|
 | Programming Language | Python |
 | Message Broker | Apache Kafka |
-| Stream Processing | Apache Flink |
-| Storage | Hadoop HDFS |
-| Data Warehouse | Apache Hive |
+| Stream Processing | Apache Flink & Python Workers |
+| Storage | Medallion Parquet Data Lake |
+| Operational DB | PostgreSQL |
 | Batch Processing | Apache Spark |
 | Database | PostgreSQL |
 | Dashboard | Grafana |
@@ -192,11 +192,11 @@ Business Processing
 
 ↓
 
-HDFS (Parquet)
+Medallion Data Lake (Parquet)
 
 ↓
 
-Apache Hive
+PostgreSQL & Apache Spark
 
 ↓
 
@@ -262,7 +262,7 @@ The Event Generator follows realistic customer journeys instead of creating rand
 
 ## Historical Data
 
-After processing, all events are stored inside Hadoop HDFS in Parquet format.
+After processing, all events are stored inside the Medallion Data Lake in Parquet format.
 
 The stored datasets become the historical data layer used by Apache Spark for long-term analytics and reporting.
 
@@ -312,11 +312,11 @@ Window Analytics
 
 ↓
 
-HDFS
+Medallion Data Lake
 
 ↓
 
-Hive
+PostgreSQL / Spark
 
 ↓
 
@@ -357,7 +357,7 @@ real-time-ecommerce-platform/
 ├── docker/
 ├── kafka/
 ├── flink/
-├── hive/
+├── data_lake/
 ├── spark/
 ├── generator/
 ├── dashboards/
@@ -377,7 +377,7 @@ By completing this project, readers will understand how to:
 - Process streaming data using Apache Flink
 - Build Kafka-based architectures
 - Store large datasets efficiently
-- Use Hive for SQL analytics
+- Use PostgreSQL & Spark for SQL analytics
 - Perform historical analytics using Spark
 - Design production-inspired Big Data systems
 - Monitor distributed applications

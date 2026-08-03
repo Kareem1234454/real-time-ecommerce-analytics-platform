@@ -4,78 +4,105 @@ A production-inspired **Big Data & Data Engineering Platform** designed for cont
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗️ Streaming & Lakehouse Architecture
 
 ```text
-       [ Olist Master Data ]          [ Live Users & Scenarios ]
-                 │                                 │
-                 ▼                                 ▼
-      Postgres Operational DB              Event Generator
-                 │                                 │
-                 ▼                                 ▼
-         Enrichment Tables           Apache Kafka Streaming Layer
-                 │                                 │
-                 └───────────────┬─────────────────┘
-                                 ▼
-                      Apache Flink Engine
-            ┌────────────────────┼────────────────────┐
-            ▼                    ▼                    ▼
-       Validation           Enrichment         Fraud Detection
-            │                    │                    │
-            └────────────────────┼────────────────────┘
-                                 ▼
-                 Hdfs Data Lake (Medallion Architecture)
-            [ Bronze: Raw JSON ] ➔ [ Silver: Parquet ] ➔ [ Gold: KPIs ]
-                                 │
-                                 ▼
-                    Apache Hive & Apache Spark
-                                 │
-                                 ▼
-                    Streamlit Real-Time Dashboard & Grafana
+                Event Generator
+                       │
+                       ▼
+               Apache Kafka
+                       │
+                       ▼
+      Python Event-Driven Micro-Batch Worker
+             (5-second processing cycle)
+                       │
+      ┌────────┬────────────┬───────────┐
+      ▼        ▼            ▼           ▼
+ Validation  Enrichment   KPI Engine  Fraud Detection
+      │        │            │           │
+      └────────┴────────────┴───────────┘
+                       │
+        ┌──────────────┴──────────────┐
+        ▼                             ▼
+  Medallion Lakehouse            PostgreSQL
+ (Bronze/Silver/Gold)         Fraud Alerts
+        │                             │
+        └──────────────┬──────────────┘
+                       ▼
+                  Streamlit Dashboard
 ```
 
 ---
 
-## 📦 Key Components
+## ⚡ Current Streaming Implementation
 
-1. **Event Generator (`generator/`)**: Python simulation service generating realistic customer sessions, shopping behavior, orders, reviews, and fraud attempts across multiple scenarios (Normal Day, Black Friday, Flash Sale).
-2. **Streaming Layer (`kafka/` & `docker/`)**: Apache Kafka and Zookeeper cluster routing 11 decoupled business and operational event topics.
-3. **Stream Processing (`flink/`)**: Apache Flink real-time streaming jobs performing UUID schema validation, DLQ redirection, Postgres master dataset enrichment, stateful Tumbling/Sliding window analytics, and rule-based fraud detection.
-4. **Data Lake Storage (`datasets/` & `hive/`)**: Medallion Data Lake architecture storing raw JSON events (Bronze), cleaned & enriched Parquet files (Silver), and aggregated business metrics (Gold) formatted for Apache Hive external table queries.
-5. **Batch Processing (`spark/`)**: PySpark applications computing daily/monthly historical growth, Customer Lifetime Value (CLV), conversion rates, and sales funnels.
-6. **Live Dashboard (`dashboards/`)**: State-of-the-art interactive **Streamlit Web Dashboard** (`streamlit_app.py`) displaying live streaming Kafka metrics, Executive KPI ticker cards, interactive Plotly analytical charts, and real-time Fraud alarms.
+The current streaming layer is implemented using an **Event-Driven Python Micro-Batch Worker Loop** (`run_streaming_workers.py`) rather than native PyFlink jobs.
+
+The worker continuously executes four streaming processing stages every **5 seconds**, providing near real-time analytics while maintaining reliable execution on Windows development environments.
+
+This design was chosen because native PyFlink deployment on Windows introduces significant compatibility challenges, including Python package availability, Java configuration, filesystem path differences, and dependency management. The micro-batch architecture provides a stable development experience while preserving the logical structure of a streaming data pipeline.
+
+---
+
+## 🐿️ Apache Flink Infrastructure
+
+An Apache Flink cluster (JobManager and TaskManager) is provisioned through Docker and remains available as part of the platform infrastructure (`http://localhost:8081`).
+
+In the current implementation, the streaming jobs are **not executed by the Flink runtime**. Instead, the processing logic runs through the Python micro-batch workers.
+
+The containerized Flink cluster is maintained to:
+- Demonstrate production-ready distributed infrastructure.
+- Support future migration to native Flink jobs.
+- Provide an architecture consistent with enterprise streaming platforms.
+
+This allows the project to evolve toward fully distributed Flink execution on Linux or cloud environments without redesigning the overall architecture.
+
+---
+
+## 📦 Core Processing Layers
+
+1. **Event Generator (`generator/`)**: Python simulation engine synthetically broadcasting realistic customer clickstream sessions, shopping behaviors, and orchestrated scenarios (Flash Sales, Cart Abandonment, and Payment Fraud testing) using real Olist reference entity IDs.
+2. **Streaming Ingestion (`kafka/` & `docker/`)**: Active Apache Kafka brokers and Zookeeper cluster (`localhost:9092`) routing live transaction telemetry across decoupled operational topics.
+3. **Stream Processing Pipeline (`flink/`)**:
+   - **Job 1 (Validation & DLQ)**: Detects malformed payloads and routes corrupt events to the Dead Letter Queue.
+   - **Job 2 (Stream Enrichment)**: Joins streaming UUIDs with master customer demographics and product catalogs.
+   - **Job 3 (KPI Aggregation)**: Computes running Gross Merchandise Value (GMV), payment distributions, and conversion metrics over tumbling time windows.
+   - **Job 4 (Fraud Detection)**: Identifies rapid failed payment sequences, calculates dynamic risk severity (75.00 to 99.90), and synchronously writes alerts to both PostgreSQL operational databases and Gold Parquet archives.
+4. **Medallion Data Lakehouse (`data_lake/`)**: Modern disk-based partitioned Data Lake structured into **Bronze** (raw immutable `.jsonl`), **Silver** (cleansed & enriched Snappy `.parquet`), and **Gold** (aggregated business intelligence tables).
+5. **Batch Historical Analytics (`spark/`)**: Dedicated historical batch engine (`scripts\run_spark_batch.bat`) executing Lakehouse Stream Fusion—merging static master reference counts directly with newly accumulated live streaming transaction volumes while modeling dynamic market price elasticity.
+6. **Executive Operations UI (`dashboards/`)**: Interactive **Streamlit Web Application** (`http://localhost:8501`) featuring a 4-tab command console with sub-second polling refreshes and hybrid SQL/Parquet database failover, alongside containerized **Grafana DevOps Surveillance** (`http://localhost:3000`).
 
 ---
 
 ## 🚀 One-Click Startup (Windows)
 
 1. Ensure **Docker Desktop** is active and running.
-2. Double-click or run the automated execution script in PowerShell/Command Prompt:
+2. Open terminal in the root directory and run our automated execution script:
    ```cmd
    scripts\setup_and_run_all.bat
    ```
-3. Open your web browser to view the interactive Live Dashboard:
-   - **Streamlit Real-Time App**: `http://localhost:8501`
-   - **Grafana Container Metrics**: `http://localhost:3000` (User: `admin`, Pass: `admin`)
+3. Open your web browser to view your live operational consoles:
+   - **Streamlit Real-Time Dashboard**: `http://localhost:8501`
+   - **Grafana DevOps Surveillance**: `http://localhost:3000` *(Login: `admin` / `admin`)*
+   - **Apache Flink Infrastructure UI**: `http://localhost:8081`
 
 ---
 
-## 📂 Project Structure
+## 📂 Project Repository Structure
 
 ```
 d:\Big Data_NTI\Final_Project/
 │
-├── kaggle_data/      # Raw Olist E-Commerce dataset CSV files
-├── docs/             # Comprehensive technical design documentation
-├── docker/           # Docker Compose infrastructure & database configs
-├── kafka/            # Kafka topic definitions & automated setup scripts
-├── generator/        # Python event generator simulation engine
-├── flink/            # PyFlink streaming transformation & fraud detection jobs
-├── hive/             # Hive external Data Lake DDL scripts
-├── spark/            # PySpark historical & batch analytics reporting
-├── dashboards/       # Streamlit real-time interactive dashboard application
-├── scripts/          # Automation, dataset seeding, and folder initialization
-├── datasets/         # Olist processing, Parquet staging, and database seeds
-├── requirements.txt  # Python package dependency specifications
-└── README.md         # Architecture documentation and usage guide
+├── dashboards/       # Streamlit real-time interactive dashboard application (SQL/Parquet failover)
+├── data_lake/        # Medallion Data Lakehouse structure (Bronze/Silver/Gold storage layers)
+├── datasets/         # Olist processing scripts, Parquet staging catalogs, and database ACID loaders
+├── docker/           # Docker Compose microservice orchestration (Kafka, Zookeeper, Flink, Postgres, Grafana)
+├── docs/             # Master Platform Guide and detailed structural specifications
+├── flink/            # Python event-driven micro-batch worker loops and streaming job architectures
+├── generator/        # Synthetic interactive customer session generator & scenario modeling engine
+├── kaggle_data/      # Raw public Olist Brazilian E-Commerce seed dataset CSV archives (~120MB)
+├── scripts/          # Automated Windows lifecycle orchestration utilities (.bat scripts)
+├── spark/            # Dynamic historical batch analytical reporting and pricing elasticity stream fusion
+├── requirements.txt  # Pinned python library dependency specifications
+└── README.md         # Master project architecture overview and usage instruction manual
 ```
