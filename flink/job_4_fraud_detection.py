@@ -44,7 +44,7 @@ def detect_fraudulent_transactions(db_url="postgresql://admin:admin123@localhost
     
     for _, row in failed_df.iterrows():
         amt = float(row.get("amount", 0))
-        calc_score = round(min(99.90, max(75.00, 78.0 + (amt / 80.0) + random.uniform(2.1, 12.8))), 2)
+        calc_score = round(min(99.90, max(75.00, 78.0 + (amt / 80.0) + random.uniform(2.1, 12.8))), 2) #in real world we use machine learning model to detect fraud
         alarm = {
             "alert_id": f"ALT-{uuid.uuid4().hex[:8].upper()}",
             "event_timestamp": datetime.now(timezone.utc).isoformat() + "Z",

@@ -39,7 +39,7 @@ def save_to_bronze_lake(root_dir, topic, payload):
         now = datetime.now()
         folder = Path(root_dir) / "data_lake" / "bronze" / topic / f"year={now.year}" / f"month={now.month:02d}" / f"day={now.day:02d}" / f"hour={now.hour:02d}"
         folder.mkdir(parents=True, exist_ok=True)
-        filename = folder / f"events_{now.strftime('%Y%m%d_%H')}.jsonl"
+        filename = folder / f"{topic}_{now.strftime('%Y%m%d_%H')}.jsonl"
         with open(filename, "a", encoding="utf-8") as f:
             f.write(json.dumps(payload) + "\n")
     except Exception as e:
