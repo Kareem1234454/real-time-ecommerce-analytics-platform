@@ -1,6 +1,6 @@
 # Real-Time E-Commerce Analytics Platform
 
-> A production-inspired Big Data platform for processing and analyzing e-commerce events in real time using Apache Kafka, Apache Flink, Medallion Parquet Data Lake, Apache Spark, PostgreSQL, Docker, and Grafana.
+> A production-inspired Big Data platform for processing and analyzing e-commerce events in real time using Apache Kafka, Apache Flink, Apache Hadoop HDFS Medallion Data Lake, Apache Spark, PostgreSQL, Docker, and Grafana.
 
 ---
 
@@ -31,7 +31,7 @@ Traditional batch processing systems cannot provide immediate insights into thes
 
 This project demonstrates how modern Big Data technologies can be combined to build a scalable real-time analytics platform capable of processing thousands of events per second.
 
-The platform simulates a real-world e-commerce environment by generating realistic customer activities, streaming them through Apache Kafka, processing them with Apache Flink, storing them in a Medallion Parquet Data Lake, performing historical analytics using Apache Spark, archiving fraud anomalies in PostgreSQL, and visualizing business metrics through interactive dashboards.
+The platform simulates a real-world e-commerce environment by generating realistic customer activities, streaming them through Apache Kafka, processing them with Apache Flink, storing them in an enterprise Apache Hadoop HDFS Medallion Data Lake, performing historical analytics using Apache Spark, archiving fraud anomalies in PostgreSQL, and visualizing business metrics through interactive dashboards.
 
 ---
 

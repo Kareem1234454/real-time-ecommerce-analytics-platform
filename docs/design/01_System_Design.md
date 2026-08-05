@@ -218,7 +218,7 @@ Processes business logic.
 
 ---
 
-## Medallion Data Lakehouse
+## Medallion Distributed Data Lake
 
 Stores immutable JSONL & Parquet datasets.
 
@@ -361,7 +361,7 @@ Flink
 - Checkpointing
 - State recovery
 
-Medallion Lakehouse
+Medallion Distributed Data Lake
 
 - Columnar Parquet compression & durability
 
@@ -405,7 +405,7 @@ Low-latency stateful stream processing.
 
 ---
 
-### Why Medallion Data Lakehouse?
+### Why Medallion Distributed Data Lake?
 
 High-performance columnar storage for large datasets without JVM filesystem bloat.
 

@@ -66,7 +66,7 @@ This allows the project to evolve toward fully distributed Flink execution on Li
                        │
         ┌──────────────┴──────────────┐
         ▼                             ▼
-  Medallion Lakehouse            PostgreSQL
+  Medallion Distributed Data Lake            PostgreSQL
  (Bronze/Silver/Gold)         Fraud Alerts
         │                             │
         └──────────────┬──────────────┘
@@ -88,20 +88,20 @@ The streaming layer consists of four processing stages executed sequentially by 
 ### Job 2 – Stream Enrichment
 * Join streaming events with static customer master data (`customers.parquet`).
 * Join streaming events with product catalog data (`products.parquet`).
-* Produce enriched business events saved as columnar Parquet files in the Silver Lakehouse tier.
+* Produce enriched business events saved as columnar Parquet files in the Silver Distributed Data Lake tier.
 
 ### Job 3 – KPI Aggregation
 * Compute streaming business KPIs over stateful tumbling time windows.
 * Aggregate running Gross Merchandise Value (GMV) revenue velocities.
 * Aggregate interactive payment method statistics and conversion funnel metrics.
-* Generate analytical executive dashboard tables in the Gold Lakehouse tier.
+* Generate analytical executive dashboard tables in the Gold Distributed Data Lake tier.
 
 ### Job 4 – Fraud Detection
 * Detect suspicious payment behavior (such as rapid consecutive failed payments on a single shopper account).
 * Calculate dynamic risk severity ranging from **75.00 to 99.90** based on financial exposure amount and behavioral variance:
   $$\text{Risk Score} = \min\left(99.90, \max\left(75.00, 78.0 + \frac{\text{Amount}}{80.0} + \text{Variance}(2.1, 12.8)\right)\right)$$
 * Store fraud alerts instantly via SQL in PostgreSQL operational tables (`localhost:5432/ecommerce_meta -> fraud_alarms`).
-* Archive fraud alerts concurrently as Parquet tables in the Gold Lakehouse layer (`data_lake/gold/fraud_alerts_log/`).
+* Archive fraud alerts concurrently as Parquet tables in the Gold Distributed Data Lake layer (`data_lake/gold/fraud_alerts_log/`).
 
 ---
 

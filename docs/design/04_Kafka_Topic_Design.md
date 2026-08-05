@@ -54,7 +54,7 @@ Kafka decouples producers from consumers, allowing multiple services to process 
  Apache Flink   Fraud Service   Monitoring
       │
       ▼
-     Data Lakehouse
+     Distributed Data Lake
 ```
 
 ---

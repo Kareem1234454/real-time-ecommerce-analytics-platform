@@ -28,18 +28,21 @@
 
 # 1. Architecture Overview
 
-The platform follows a modern event-driven architecture where every customer interaction becomes a streaming event.
+The platform follows an **Enterprise Distributed Data Lake** paradigm where every customer interaction becomes a continuous streaming event. Instead of writing business transactions directly into traditional rigid databases, every interaction is first published to Apache Kafka channels, allowing multiple downstream processing consumers to ingest and enrich telemetry independently.
 
-Instead of directly writing business transactions into a database, every event is first published to Apache Kafka, allowing multiple consumers to process the same event independently.
+To harmonize scalable storage with sub-second analytical aggregations, our storage and processing layers unify three fundamental Big Data concepts:
+1. **Apache Hadoop HDFS (Infrastructure)**: A containerized Hadoop cluster (`hadoop-namenode` port `9870` and `hadoop-datanode`) providing physical distributed file storage blocks, data replication, and high-throughput network availability.
+2. **Medallion Data Lake (Organization Pattern)**: A structured storage engineering methodology dividing HDFS directories into quality refinement tiers: **Bronze** (raw immutable `.jsonl`), **Silver** (cleansed Snappy `.parquet`), and **Gold** (aggregated business executive reporting tables).
+3. **Distributed Data Lake (Platform Ecosystem)**: The holistic unification of our Hadoop HDFS Data Lake repository with streaming **Apache Flink calculations**, deep **Apache Spark OLAP historical joins**, columnar **Apache Parquet compression**, and relational **PostgreSQL OLTP logs**, providing high-throughput querying on scalable distributed storage.
+
+### Dual-Write Mirroring & Resilience
+To ensure uninterrupted operational continuity across Windows development laptops and Docker network transitions, all analytical workers execute **Dual-Write Mirroring** (writing real-time events simultaneously to HDFS blocks and local Data Lake mirrored folders) coupled with automatic **Hybrid Read-Fallback** across all visualization interfaces.
 
 This architecture is designed to provide:
-
-* High Throughput
-* Low Latency
-* Scalability
-* Fault Tolerance
-* Horizontal Scaling
-* Near Real-Time Analytics
+* High Throughput & Sub-Second Latency
+* Decoupled Horizontal Scalability
+* Fault Tolerance & Dual-Storage Resilience
+* Near Real-Time Executive BI Visualizations
 
 ---
 
@@ -195,9 +198,9 @@ Flink performs processing continuously with very low latency.
 
 ---
 
-## 4.4 Medallion Data Lakehouse
+## 4.4 Medallion Distributed Data Lake
 
-The Data Lakehouse stores all business events across three logical tiers:
+The Distributed Data Lake stores all business events across three logical tiers:
 
 ```
 bronze/ (Raw immutable JSONL events)
@@ -325,7 +328,7 @@ Processed Stream
 
 ↓
 
-Medallion Lakehouse
+Medallion Distributed Data Lake
 
 ↓
 
@@ -378,7 +381,7 @@ Aggregated
 
 ## Stage 6
 
-Stored in Medallion Lakehouse
+Stored in Medallion Distributed Data Lake
 
 ↓
 
@@ -497,7 +500,7 @@ Flink
 * Backpressure
 * Job Health
 
-Data Lakehouse
+Distributed Data Lake
 
 * Storage Usage
 * Partition Status
@@ -555,7 +558,7 @@ Examples:
 * Add Flink TaskManagers
 * Increase Kafka Partitions
 * Add Spark Workers
-* Expand Lakehouse Partition Storage
+* Expand Distributed Data Lake Partition Storage
 
 Each service can scale independently.
 
@@ -575,7 +578,7 @@ Flink
 * Checkpointing
 * Stateful Recovery
 
-Medallion Data Lakehouse
+Medallion Distributed Data Lake
 
 * Snappy Columnar Compression & Partition Resilience
 

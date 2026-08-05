@@ -34,14 +34,41 @@ def load_master_data(root_dir):
     print(f"[SUCCESS] Loaded {len(df_cust):,} Customers and {len(df_prod):,} Products into simulation cache.")
     return df_cust, df_prod
 
+try:
+    from utils.hdfs_client import hdfs
+except ImportError:
+    hdfs = None
+
+_hdfs_last_check = 0
+_hdfs_available_cached = False
+def check_hdfs_cached():
+    global _hdfs_last_check, _hdfs_available_cached
+    import time
+    now_ts = time.time()
+    if now_ts - _hdfs_last_check > 10.0:
+        _hdfs_last_check = now_ts
+        _hdfs_available_cached = (hdfs is not None) and hdfs.is_available()
+    return _hdfs_available_cached
+
 def save_to_bronze_lake(root_dir, topic, payload):
     try:
         now = datetime.now()
+        h_dir = f"/data_lake/bronze/{topic}/year={now.year}/month={now.month:02d}/day={now.day:02d}/hour={now.hour:02d}"
+        h_file = f"{topic}_{now.strftime('%Y%m%d_%H')}.jsonl"
+        
+        # 1. Always write to local storage mirror to guarantee 100% data availability for Flink, Spark, and Streamlit UI
         folder = Path(root_dir) / "data_lake" / "bronze" / topic / f"year={now.year}" / f"month={now.month:02d}" / f"day={now.day:02d}" / f"hour={now.hour:02d}"
         folder.mkdir(parents=True, exist_ok=True)
-        filename = folder / f"{topic}_{now.strftime('%Y%m%d_%H')}.jsonl"
+        filename = folder / h_file
         with open(filename, "a", encoding="utf-8") as f:
             f.write(json.dumps(payload) + "\n")
+            
+        # 2. Synchronously mirror direct stream payload into HDFS storage blocks if cluster is online (using 10-sec cache)
+        if check_hdfs_cached():
+            try:
+                hdfs.append_jsonl(h_dir, h_file, payload)
+            except Exception:
+                pass
     except Exception as e:
         pass
 

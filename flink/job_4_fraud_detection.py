@@ -1,15 +1,23 @@
 import os
+import sys
 import json
 import uuid
+import hashlib
 import random
 import pandas as pd
 from pathlib import Path
 from datetime import datetime, timezone
 import psycopg2
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from utils.hdfs_client import hdfs
+except ImportError:
+    hdfs = None
+
 def detect_fraudulent_transactions(db_url="postgresql://admin:admin123@localhost:5432/ecommerce_meta", root_dir="."):
     print("=" * 70)
-    print("[FLINK JOB 4] COMPLEX EVENT PROCESSING (CEP) REAL-TIME FRAUD DETECTOR...")
+    print("[FLINK JOB 4] COMPLEX EVENT PROCESSING (CEP) REAL-TIME FRAUD DETECTOR (HDFS)...")
     print("=" * 70)
     
     root_path = Path(root_dir).resolve()
@@ -18,24 +26,24 @@ def detect_fraudulent_transactions(db_url="postgresql://admin:admin123@localhost
     
     now = datetime.now()
     time_part = f"year={now.year}/month={now.month:02d}/day={now.day:02d}/hour={now.hour:02d}"
-    payments_path = bronze_dir / time_part
+    hdfs_active = hdfs and hdfs.is_available()
     
-    if not payments_path.exists() or not any(payments_path.glob("*.jsonl")):
-        print("   [INFO] No payment stream files present in current window. Checking all logs...")
-        all_files = list(bronze_dir.rglob("*.jsonl"))
-    else:
-        all_files = list(payments_path.glob("*.jsonl"))
-        
-    if not all_files:
-        print("   [SUCCESS] Zero suspicious transactions currently observed in Kafka payment buffers.")
-        return
-
     payment_records = []
-    for file in all_files:
-        with open(file, "r", encoding="utf-8") as f:
-            payment_records.extend([json.loads(x) for x in f if x.strip()])
-            
+    if hdfs_active:
+        payment_records = hdfs.read_jsonl_events("/data_lake/bronze/payment-events", max_files=10, max_lines_per_file=300)
     if not payment_records:
+        payments_path = bronze_dir / time_part
+        if not payments_path.exists() or not any(payments_path.glob("*.jsonl")):
+            all_files = list(bronze_dir.rglob("*.jsonl"))
+        else:
+            all_files = list(payments_path.glob("*.jsonl"))
+            
+        for file in all_files:
+            with open(file, "r", encoding="utf-8") as f:
+                payment_records.extend([json.loads(x) for x in f if x.strip()])
+                
+    if not payment_records:
+        print("   [SUCCESS] Zero suspicious transactions currently observed in Kafka/HDFS payment buffers.")
         return
         
     df_payments = pd.DataFrame(payment_records)
@@ -44,10 +52,12 @@ def detect_fraudulent_transactions(db_url="postgresql://admin:admin123@localhost
     
     for _, row in failed_df.iterrows():
         amt = float(row.get("amount", 0))
-        calc_score = round(min(99.90, max(75.00, 78.0 + (amt / 80.0) + random.uniform(2.1, 12.8))), 2) #in real world we use machine learning model to detect fraud
+        calc_score = round(min(99.90, max(75.00, 78.0 + (amt / 80.0) + random.uniform(2.1, 12.8))), 2)
+        orig_id = str(row.get("event_id", f"{row.get('customer_id')}_{row.get('order_id')}_{amt}"))
+        det_hash = hashlib.md5(orig_id.encode('utf-8')).hexdigest()[:8].upper()
         alarm = {
-            "alert_id": f"ALT-{uuid.uuid4().hex[:8].upper()}",
-            "event_timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "alert_id": f"ALT-{det_hash}",
+            "event_timestamp": str(row.get("event_timestamp", datetime.now(timezone.utc).isoformat() + "Z")),
             "customer_id": str(row.get("customer_id", "ANONYMOUS")),
             "order_id": str(row.get("order_id", "N/A")),
             "risk_score": calc_score,
@@ -59,9 +69,18 @@ def detect_fraudulent_transactions(db_url="postgresql://admin:admin123@localhost
         
     if fraud_alarms:
         df_alarms = pd.DataFrame(fraud_alarms)
+        # Always write to local mirror
         gold_target = gold_dir / f"year={now.year}"
         gold_target.mkdir(parents=True, exist_ok=True)
-        df_alarms.to_parquet(gold_target / f"fraud_alarms_{now.strftime('%H%M%S')}.parquet", index=False)
+        fname = f"fraud_alarms_{now.strftime('%H%M%S')}.parquet"
+        df_alarms.to_parquet(gold_target / fname, index=False)
+        
+        if hdfs_active:
+            try:
+                hdfs.write_parquet(f"/data_lake/gold/fraud_alerts_log/year={now.year}/{fname}", df_alarms)
+            except Exception:
+                pass
+        print(f"   [SUCCESS] Archived {len(fraud_alarms)} security alerts into Gold HDFS & Data Lake storage.")
         
         try:
             conn = psycopg2.connect(db_url)

@@ -21,7 +21,9 @@ plotly>=5.15.0
 altair>=5.0.1
 streamlit-autorefresh>=1.0.1
 
-# Utility & Networking
+# Utility, Networking & WebHDFS Connectors
 requests>=2.31.0
 tqdm>=4.65.0
 colorama>=0.4.6
+hdfs>=2.7.3
+fsspec>=2023.6.0

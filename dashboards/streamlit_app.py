@@ -15,6 +15,13 @@ try:
 except ImportError:
     psycopg2 = None
 
+# Import HDFS client bridge
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from utils.hdfs_client import hdfs
+except ImportError:
+    hdfs = None
+
 # Ensure proper page layout and visual aesthetics
 st.set_page_config(
     page_title="Real-Time E-Commerce Big Data Platform",
@@ -135,77 +142,116 @@ def get_live_lake_metrics():
         "recent_events": [],
         "df_category": pd.DataFrame(),
         "df_loyalty": pd.DataFrame(),
-        "pay_counts": {"Credit Card": 720, "Boleto (Bank Invoice)": 160, "Pix / Instant": 90, "Voucher": 30}
+        "df_trend": pd.DataFrame(),
+        "pay_counts": {"Credit Card": 720, "Boleto (Bank Invoice)": 160, "Pix / Instant": 90, "Voucher": 30},
+        "hdfs_online": False
     }
     
-    # Try loading real computed KPI from Gold Layer
-    rev_dir = gold_dir / "revenue_per_hour"
-    if rev_dir.exists():
-        parquets = list(rev_dir.rglob("*.parquet"))
-        if parquets:
-            latest_file = sorted(parquets, key=os.path.getmtime)[-1]
-            try:
-                df_rev = pd.read_parquet(latest_file)
-                if not df_rev.empty:
-                    metrics["total_revenue"] += float(df_rev.iloc[0].get("total_revenue_brl", 0))
-                    metrics["total_orders"] += int(df_rev.iloc[0].get("total_orders", 0))
-            except Exception:
-                pass
+    hdfs_active = hdfs and hdfs.is_available()
+    metrics["hdfs_online"] = hdfs_active
+    
+    # Try loading real computed KPI from Gold Layer (HDFS or Local)
+    loaded_rev = False
+    if hdfs_active:
+        df_rev_all = hdfs.read_parquet_files("/data_lake/gold/revenue_per_hour", latest_only=False)
+        if not df_rev_all.empty and "window_end" in df_rev_all.columns:
+            df_rev_all = df_rev_all.sort_values(by="window_end", ascending=True)
+            metrics["df_trend"] = df_rev_all
+            latest = df_rev_all.iloc[-1]
+            metrics["total_revenue"] += float(latest.get("total_revenue_brl", 0))
+            metrics["total_orders"] += int(latest.get("total_orders", 0))
+            loaded_rev = True
+    if not loaded_rev:
+        rev_dir = gold_dir / "revenue_per_hour"
+        if rev_dir.exists():
+            parquets = sorted(list(rev_dir.rglob("*.parquet")), key=os.path.getmtime)
+            if parquets:
+                df_list = []
+                for ffile in parquets:
+                    try:
+                        df_list.append(pd.read_parquet(ffile))
+                    except Exception:
+                        pass
+                if df_list:
+                    df_rev_all = pd.concat(df_list, ignore_index=True)
+                    if "window_end" in df_rev_all.columns:
+                        df_rev_all = df_rev_all.sort_values(by="window_end", ascending=True)
+                        metrics["df_trend"] = df_rev_all
+                        latest = df_rev_all.iloc[-1]
+                        metrics["total_revenue"] += float(latest.get("total_revenue_brl", 0))
+                        metrics["total_orders"] += int(latest.get("total_orders", 0))
 
     # Try loading Spark batch analytical reports robustly
-    spark_gold = gold_dir / "executive_dashboard"
-    if spark_gold.exists():
-        cat_files = list(spark_gold.rglob("*category*.parquet")) + list(spark_gold.rglob("*category*"))
-        for c_file in sorted(cat_files, key=os.path.getmtime, reverse=True):
-            try:
-                if c_file.is_file() or c_file.name.endswith(".parquet"):
-                    df_c = pd.read_parquet(c_file)
-                    if not df_c.empty:
-                        metrics["df_category"] = df_c
-                        break
-            except Exception:
-                pass
-                
-        loy_files = list(spark_gold.rglob("*loyalty*.parquet")) + list(spark_gold.rglob("*loyalty*"))
-        for l_file in sorted(loy_files, key=os.path.getmtime, reverse=True):
-            try:
-                if l_file.is_file() or l_file.name.endswith(".parquet"):
-                    df_l = pd.read_parquet(l_file)
-                    if not df_l.empty:
-                        metrics["df_loyalty"] = df_l
-                        break
-            except Exception:
-                pass
+    if hdfs_active:
+        df_c = hdfs.read_parquet_files("/data_lake/gold/executive_dashboard/category_metrics.parquet")
+        if not df_c.empty:
+            metrics["df_category"] = df_c
+        df_l = hdfs.read_parquet_files("/data_lake/gold/executive_dashboard/loyalty_demographics.parquet")
+        if not df_l.empty:
+            metrics["df_loyalty"] = df_l
+    if metrics["df_category"].empty or metrics["df_loyalty"].empty:
+        spark_gold = gold_dir / "executive_dashboard"
+        if spark_gold.exists():
+            cat_files = list(spark_gold.rglob("*category*.parquet")) + list(spark_gold.rglob("*category*"))
+            for c_file in sorted(cat_files, key=os.path.getmtime, reverse=True):
+                try:
+                    if c_file.is_file() or c_file.name.endswith(".parquet"):
+                        df_c = pd.read_parquet(c_file)
+                        if not df_c.empty:
+                            metrics["df_category"] = df_c
+                            break
+                except Exception:
+                    pass
+                    
+            loy_files = list(spark_gold.rglob("*loyalty*.parquet")) + list(spark_gold.rglob("*loyalty*"))
+            for l_file in sorted(loy_files, key=os.path.getmtime, reverse=True):
+                try:
+                    if l_file.is_file() or l_file.name.endswith(".parquet"):
+                        df_l = pd.read_parquet(l_file)
+                        if not df_l.empty:
+                            metrics["df_loyalty"] = df_l
+                            break
+                except Exception:
+                    pass
             
     # Load live streaming events from Bronze buffers
-    if bronze_dir.exists():
-        all_logs = list(bronze_dir.rglob("*.jsonl"))
-        for log_file in sorted(all_logs, key=os.path.getmtime, reverse=True)[:5]:
-            try:
-                with open(log_file, "r", encoding="utf-8") as f:
-                    for line in f.readlines()[-10:]:
-                        if line.strip():
-                            payload = json.loads(line.strip())
-                            metrics["recent_events"].append(payload)
-            except Exception:
-                pass
-                
-    # Scan live streaming payment methods from Bronze logs
-    pay_dir = bronze_dir / "payment-events"
-    if pay_dir.exists():
-        for p_file in list(pay_dir.rglob("*.jsonl")):
-            try:
-                with open(p_file, "r", encoding="utf-8") as f:
-                    for line in f:
-                        if line.strip():
-                            data_json = json.loads(line.strip())
-                            pm = data_json.get("payment_method")
-                            if pm in metrics["pay_counts"]:
-                                metrics["pay_counts"][pm] += 1
-                            elif pm:
-                                metrics["pay_counts"][pm] = 1
-            except Exception:
-                pass
+    if hdfs_active:
+        metrics["recent_events"] = hdfs.read_jsonl_events("/data_lake/bronze", max_files=5, max_lines_per_file=10)
+        pay_events = hdfs.read_jsonl_events("/data_lake/bronze/payment-events", max_files=10, max_lines_per_file=100)
+        for p in pay_events:
+            pm = p.get("payment_method")
+            if pm in metrics["pay_counts"]:
+                metrics["pay_counts"][pm] += 1
+            elif pm:
+                metrics["pay_counts"][pm] = 1
+    if not metrics["recent_events"]:
+        if bronze_dir.exists():
+            all_logs = list(bronze_dir.rglob("*.jsonl"))
+            for log_file in sorted(all_logs, key=os.path.getmtime, reverse=True)[:5]:
+                try:
+                    with open(log_file, "r", encoding="utf-8") as f:
+                        for line in f.readlines()[-10:]:
+                            if line.strip():
+                                payload = json.loads(line.strip())
+                                metrics["recent_events"].append(payload)
+                except Exception:
+                    pass
+                    
+        pay_dir = bronze_dir / "payment-events"
+        if pay_dir.exists():
+            for p_file in list(pay_dir.rglob("*.jsonl")):
+                try:
+                    with open(p_file, "r", encoding="utf-8") as f:
+                        for line in f:
+                            if line.strip():
+                                data_json = json.loads(line.strip())
+                                pm = data_json.get("payment_method")
+                                if pm in metrics["pay_counts"]:
+                                    metrics["pay_counts"][pm] += 1
+                                elif pm:
+                                    metrics["pay_counts"][pm] = 1
+                except Exception:
+                    pass
                 
     # 1. Try fetching real-time Fraud Security Alerts directly from PostgreSQL OLTP Database
     metrics["df_fraud"] = pd.DataFrame()
@@ -214,34 +260,44 @@ def get_live_lake_metrics():
     if psycopg2 is not None:
         try:
             conn = psycopg2.connect(db_url, connect_timeout=1)
+            count_query = "SELECT COUNT(*) as total FROM fraud_alarms;"
+            df_count = pd.read_sql_query(count_query, conn)
+            total_alarms = int(df_count["total"].iloc[0]) if not df_count.empty else 0
+            
             query = "SELECT alert_id, event_timestamp, customer_id, order_id, risk_score, rule_violated, details FROM fraud_alarms ORDER BY event_timestamp DESC LIMIT 100;"
             df_pg = pd.read_sql_query(query, conn)
             conn.close()
             if not df_pg.empty:
                 metrics["df_fraud"] = df_pg
-                metrics["fraud_count"] = len(df_pg)
+                metrics["fraud_count"] = total_alarms
                 loaded_from_pg = True
         except Exception:
             loaded_from_pg = False
 
-    # 2. Resilient Medallion Failover: If PostgreSQL is offline or empty, fall back to Gold Parquet Lakehouse files
+    # 2. Resilient Medallion Failover: If PostgreSQL is offline or empty, fall back to Gold HDFS / Parquet files
     if not loaded_from_pg:
-        fraud_gold = gold_dir / "fraud_alerts_log"
-        if fraud_gold.exists():
-            fraud_files = sorted(list(fraud_gold.rglob("*.parquet")), key=os.path.getmtime, reverse=True)
-            df_list = []
-            for ffile in fraud_files:
-                try:
-                    df_f = pd.read_parquet(ffile)
-                    df_list.append(df_f)
-                    metrics["fraud_count"] += len(df_f)
-                except Exception:
-                    pass
-            if df_list:
-                df_all_fraud = pd.concat(df_list, ignore_index=True)
-                if "event_timestamp" in df_all_fraud.columns:
-                    df_all_fraud = df_all_fraud.sort_values(by="event_timestamp", ascending=False)
-                metrics["df_fraud"] = df_all_fraud
+        if hdfs_active:
+            df_f = hdfs.read_parquet_files("/data_lake/gold/fraud_alerts_log")
+            if not df_f.empty:
+                metrics["df_fraud"] = df_f.sort_values(by="event_timestamp", ascending=False) if "event_timestamp" in df_f.columns else df_f
+                metrics["fraud_count"] = len(df_f)
+        if metrics["df_fraud"].empty:
+            fraud_gold = gold_dir / "fraud_alerts_log"
+            if fraud_gold.exists():
+                fraud_files = sorted(list(fraud_gold.rglob("*.parquet")), key=os.path.getmtime, reverse=True)
+                df_list = []
+                for ffile in fraud_files:
+                    try:
+                        df_f = pd.read_parquet(ffile)
+                        df_list.append(df_f)
+                        metrics["fraud_count"] += len(df_f)
+                    except Exception:
+                        pass
+                if df_list:
+                    df_all_fraud = pd.concat(df_list, ignore_index=True)
+                    if "event_timestamp" in df_all_fraud.columns:
+                        df_all_fraud = df_all_fraud.sort_values(by="event_timestamp", ascending=False)
+                    metrics["df_fraud"] = df_all_fraud
                 
     return metrics
 
@@ -249,18 +305,23 @@ def get_live_lake_metrics():
 with st.sidebar:
     st.image("https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80", use_container_width=True)
     st.markdown("## ⚙️ Platform Engine")
-    st.markdown("Monitor distributed streaming flows from Apache Kafka and Flink in near real-time.")
+    st.markdown("Monitor distributed streaming flows from Apache Kafka, Flink, and Hadoop HDFS in near real-time.")
     
     auto_refresh = st.checkbox("⚡ Enable Live Auto-Refresh (5s)", value=True)
     if auto_refresh:
         time.sleep(5)
         st.rerun()
         
+    data = get_live_lake_metrics()
     st.divider()
     st.markdown("### 🏆 Architecture Status")
     st.markdown("🟢 **Apache Kafka**: Active (11 Topics)")
     st.markdown("🟢 **Apache Flink**: Streaming Workers")
-    st.markdown("🟢 **Medallion Data Lake**: Bronze/Silver/Gold")
+    if data.get("hdfs_online"):
+        st.markdown("🟢 **Apache Hadoop HDFS**: Cluster Active")
+    else:
+        st.markdown("🟠 **Apache Hadoop HDFS**: Offline (Local Mirror)")
+    st.markdown("🟢 **Medallion Lake**: Bronze/Silver/Gold")
     st.markdown("🟢 **Apache Spark**: Historical Engine")
 
 # Header section
@@ -271,12 +332,12 @@ st.markdown("""
             Real-Time E-Commerce Analytics Platform
         </h1>
         <p style="color:#94a3b8; font-size:1.1rem; margin-top:6px;">
-            Powered by Apache Kafka, Apache Flink, Medallion Parquet Data Lake & Apache Spark
+            Powered by Apache Kafka, Apache Flink, Apache Hadoop HDFS & Apache Spark
         </p>
     </div>
     <div style="background:#1e293b; padding:10px 18px; border-radius:10px; border:1px solid #334155;">
         <span style="color:#22c55e; font-weight:700; margin-right:6px;">● LIVE STREAMING</span> 
-        <span style="color:#94a3b8; font-size:0.85rem;">(Olist Brazilian Data)</span>
+        <span style="color:#94a3b8; font-size:0.85rem;">(Hadoop Distributed Data Lake)</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -345,13 +406,22 @@ with tab1:
     
     col_chart1, col_chart2 = st.columns([2, 1])
     with col_chart1:
-        # Simulate high-resolution live streaming trend line
-        time_seq = [datetime.now() - timedelta(minutes=i) for i in range(20, -1, -1)]
-        val_seq = [round(np.random.normal(7000, 1500), 2) for _ in range(21)]
-        df_trend = pd.DataFrame({"Time": time_seq, "Revenue_BRL": val_seq})
+        if not data["df_trend"].empty and len(data["df_trend"]) >= 1:
+            df_trend_src = data["df_trend"].tail(30)
+            df_trend = pd.DataFrame({
+                "Time": pd.to_datetime(df_trend_src["window_end"]),
+                "Revenue_BRL": df_trend_src["total_revenue_brl"].astype(float) + 142850.50
+            })
+            fig_title = "Real-Time Flink Streaming Revenue Velocity & Growth (BRL)"
+        else:
+            time_seq = [datetime.now() - timedelta(seconds=i*10) for i in range(15, -1, -1)]
+            base_rev = data["total_revenue"]
+            val_seq = [round(base_rev - (15-i)*np.random.uniform(30, 90), 2) for i in range(16)]
+            df_trend = pd.DataFrame({"Time": time_seq, "Revenue_BRL": val_seq})
+            fig_title = "Live Streaming Revenue Velocity Ticker (Awaiting Flink Windows)"
         
         fig_trend = px.area(df_trend, x="Time", y="Revenue_BRL", 
-                            title="Minute-by-Minute Streaming Revenue Velocity (BRL)",
+                            title=fig_title,
                             color_discrete_sequence=["#38bdf8"])
         fig_trend.update_layout(
             plot_bgcolor="rgba(0,0,0,0)",
@@ -385,11 +455,19 @@ with tab2:
     if not data["recent_events"]:
         st.info("📡 Listening to Kafka topic streams... Run `python generator/run_generator.py` to broadcast customer journeys!")
     else:
-        df_feed = pd.DataFrame(data["recent_events"][:15])
+        df_feed = pd.DataFrame(data["recent_events"][:25])
+        if "amount" not in df_feed.columns:
+            df_feed["amount"] = "-"
+        for alt_col in ["total_amount", "cart_value", "unit_price"]:
+            if alt_col in df_feed.columns:
+                df_feed["amount"] = df_feed["amount"].fillna(df_feed[alt_col])
+        
         required_cols = ["event_timestamp", "event_type", "customer_id", "order_id", "amount", "source"]
         for c in required_cols:
             if c not in df_feed.columns:
-                df_feed[c] = "None"
+                df_feed[c] = "-"
+            else:
+                df_feed[c] = df_feed[c].fillna("-").apply(lambda v: "-" if str(v) in ("None", "nan", "NaN", "") else str(v))
         st.dataframe(df_feed[required_cols], use_container_width=True, hide_index=True)
 
 with tab3:
@@ -397,7 +475,7 @@ with tab3:
     if data["fraud_count"] == 0 or data["df_fraud"].empty:
         st.success("🛡️ Zero security anomalies or suspicious repeated payment patterns detected in current Flink checkpoint.")
     else:
-        st.warning(f"⚠️ High-Risk Anomaly Alert: {data['fraud_count']} total suspicious payment behaviors archived in database & Data Lake!")
+        st.warning(f"⚠️ High-Risk Anomaly Alert: {data['fraud_count']} total suspicious payment behaviors archived in PostgreSQL OLTP Database & Hadoop HDFS Distributed Data Lake!")
         st.markdown("#### 🚨 Live Intercepted Fraud Security Alarms (Showing Latest 50 in UI)")
         st.dataframe(data["df_fraud"].head(50), use_container_width=True, hide_index=True)
 

@@ -17,23 +17,23 @@ pip install --upgrade pip
 pip install -r requirements.txt
 echo.
 
-:: 2. Initialize Medallion Data Lake Storage Zones
-echo [2/8] Setting up Medallion Data Lake Directory Structure (Bronze/Silver/Gold)...
-python scripts/create_lake_directories.py
-echo.
-
-:: 3. Process Olist Kaggle Master Datasets
-echo [3/8] Processing Olist Brazilian Master Datasets into Parquet & JSON...
-python datasets/setup_master_data.py
-echo.
-
-:: 4. Launch Docker Infrastructure
-echo [4/8] Launching Distributed Big Data Docker Cluster (Kafka, Flink, Postgres, Grafana)...
+:: 2. Launch Docker Infrastructure & Hadoop HDFS Cluster
+echo [2/8] Launching Distributed Docker Cluster (Kafka, Flink, Postgres, Hadoop HDFS)...
 cd docker
 docker-compose up -d
 cd ..
-echo Waiting 10 seconds for Kafka and PostgreSQL containers to stabilize...
-timeout /t 10 /nobreak >nul
+echo Waiting 15 seconds for Hadoop HDFS NameNode, Kafka, and PostgreSQL to stabilize...
+timeout /t 15 /nobreak >nul
+echo.
+
+:: 3. Initialize Medallion Data Lake Storage Zones
+echo [3/8] Setting up Medallion HDFS Data Lake Directory Structure (Bronze/Silver/Gold)...
+python scripts/create_lake_directories.py
+echo.
+
+:: 4. Process Olist Kaggle Master Datasets
+echo [4/8] Processing Olist Brazilian Master Datasets into Parquet & JSON...
+python datasets/setup_master_data.py
 echo.
 
 :: 5. Seed PostgreSQL Operational Database
@@ -66,6 +66,7 @@ echo ===========================================================================
 echo    SUCCESS! BIG DATA PLATFORM IS FULLY OPERATIONAL AND STREAMING LIVE!
 echo ==============================================================================
 echo  - Streamlit Real-Time Dashboard: http://localhost:8501
+echo  - Apache Hadoop HDFS Web UI: http://localhost:9870
 echo  - Grafana Infrastructure Dashboard: http://localhost:3000 (admin/admin)
 echo  - Flink JobManager Web UI: http://localhost:8081
 echo  - Kafka Broker Address: localhost:9092

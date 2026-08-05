@@ -26,12 +26,12 @@ taskkill /FI "WINDOWTITLE eq Streamlit Live Analytics Dashboard*" /F /T >nul 2>&
 echo [SUCCESS] All streaming loops and UI windows shut down!
 echo.
 
-:: 2. Stop Docker and destroy persistent volume mounts (-v wipes DB volumes)
-echo [2/5] Stopping Docker containers and wiping database volume caches...
+:: 2. Stop Docker and destroy persistent volume mounts (-v wipes DB & HDFS volumes)
+echo [2/5] Stopping Docker containers and wiping PostgreSQL & Hadoop HDFS volume caches...
 cd docker
 docker-compose down -v --remove-orphans
 cd ..
-echo [SUCCESS] Docker cluster stopped and database volumes purged!
+echo [SUCCESS] Docker cluster stopped and HDFS/Postgres database volumes purged!
 echo.
 
 :: 2. Clean up Medallion Data Lake streams

@@ -1,15 +1,15 @@
 # `docs/design/06_Medallion_Data_Lake_Storage_Design.md`
 
-# Modern Medallion Data Lake Storage Design
+# Enterprise Hadoop HDFS Medallion Data Lake Storage Design
 
-> This document defines the Data Lakehouse architecture for the Real-Time E-Commerce Analytics Platform. It details our intentional transition away from legacy HDFS toward a high-performance local Medallion Data Lakehouse utilizing Snappy-compressed Apache Parquet and immutable JSON-Lines storage tiers.
+> This document defines the Distributed Data Lake architecture for the Real-Time E-Commerce Analytics Platform. It details our implementation of a containerized **Apache Hadoop Distributed File System (HDFS)** paired with a high-performance Medallion Distributed Data Lake utilizing Snappy-compressed Apache Parquet and immutable JSON-Lines storage tiers.
 
 ---
 
 ## Table of Contents
 
 1. [Executive Summary & Storage Objectives](#1-executive-summary--storage-objectives)
-2. [Architectural Evolution: Why We Bypassed Legacy HDFS](#2-architectural-evolution-why-we-bypassed-legacy-hdfs)
+2. [Architectural Evolution: Containerized Apache Hadoop HDFS & WebHDFS Bridge](#2-architectural-evolution-containerized-apache-hadoop-hdfs--webhdfs-bridge)
 3. [Medallion Storage Tiers (Bronze → Silver → Gold)](#3-medallion-storage-tiers-bronze--silver--gold)
 4. [Directory Hierarchy & Partitioning Strategy](#4-directory-hierarchy--partitioning-strategy)
 5. [File Formats & Compression Standards](#5-file-formats--compression-standards)
@@ -19,26 +19,30 @@
 
 ## 1. Executive Summary & Storage Objectives
 
-The platform replaces complex traditional clustered storage engines with a lean, enterprise-grade **Medallion Data Lakehouse** structured within the `data_lake/` folder architecture.
+The platform combines distributed enterprise storage reliability with high-speed columnar analytical querying by implementing an **Enterprise Distributed Data Lake**. This architecture harmoniously integrates three foundational concepts:
+1. **HDFS Infrastructure**: A containerized **Apache Hadoop Distributed File System** (`hadoop-namenode` and `hadoop-datanode`) handling physical file blocks, replication, and distributed cluster storage accessible via WebHDFS HTTP port `9870`.
+2. **Medallion Data Lake Pattern**: An organized repository structuring raw, structured, and aggregated files into multi-hop quality refinement zones (**Bronze**, **Silver**, and **Gold**).
+3. **Distributed Data Lake Operations**: The synergistic combination of our HDFS storage lake with columnar **Apache Parquet tables**, streaming **Apache Flink calculations**, deep **Apache Spark OLAP joins**, and relational **PostgreSQL metadata logs**, granting high-performance consistency without relinquishing cloud-scale file storage flexibility.
 
-The storage layer is engineered to satisfy five core operational requirements:
-* **Zero-Latency Ingestion**: Buffer raw streaming JSON messages directly from Apache Kafka without schema evaluation bottlenecks.
-* **High-Throughput Analytical Scanning**: Utilize columnar Apache Parquet files to power sub-second executive dashboard queries without relational database locking overhead.
+The storage layer is engineered to satisfy six core operational requirements:
+* **Distributed HDFS Storage**: Persist immutable streaming logs and analytical tables inside dedicated HDFS blocks, inspectable live via the Hadoop NameNode UI (`http://localhost:9870`).
+* **Zero-Latency Ingestion**: Buffer raw streaming JSON messages directly from Apache Kafka into HDFS Bronze partitions without schema evaluation bottlenecks.
+* **High-Throughput Analytical Scanning**: Utilize columnar Apache Parquet files in HDFS Silver and Gold tiers to power sub-second executive dashboard queries without relational database locking overhead.
 * **ACID Master & Stream Hybridization**: Enable seamless inner hash-joins across static customer catalogs and dynamic real-time transaction streams.
-* **Disaster Recovery & Immutable Replay**: Preserve unedited telemetry in the Bronze tier to allow continuous historical re-computation.
-* **Cross-Environment Portability**: Execute cleanly on any operating system without Java NameNode/DataNode clustering complexities.
+* **Frictionless Windows Compatibility**: Access HDFS blocks natively from Python engines via a memory-buffered WebHDFS REST connector (`utils/hdfs_client.py`) without ever requiring local Java Virtual Machine or WinUtils binaries on the Windows host.
+* **Dual-Write Mirroring & Hybrid Fallback**: To guarantee absolute resilience on Windows development machines, all streaming event generators and Flink workers execute synchronous dual-writes to both containerized HDFS storage blocks and local filesystem Data Lake mirrors (`data_lake/`). Subsequent analytical consumers (Streamlit UI, Spark batch pipelines) execute instantaneous hybrid read fallbacks to local mirrored Parquet blocks should Docker network timeouts occur.
 
 ---
 
-## 2. Architectural Evolution: Why We Bypassed Legacy HDFS
+## 2. Architectural Evolution: Containerized Apache Hadoop HDFS & WebHDFS Bridge
 
-In standard 2010-era Hadoop deployments, Data Lakes relied heavily on the Hadoop Distributed File System (HDFS) and Apache Hive. However, modern analytical systems have largely converged on **Cloud Object Stores & Local Medallion Parquet Architectures**. 
+While legacy 2010-era Hadoop deployments relied on disk-heavy MapReduce and Apache Hive (requiring 30 to 60 seconds of query compilation latency), our platform completely modernizes the HDFS ecosystem by integrating **Apache Parquet, Apache Spark, PyFlink, and WebHDFS**:
 
-| Architectural Dimension | Legacy HDFS Approach | Modern Medallion Lakehouse (Our Implementation) |
+| Architectural Dimension | Legacy MapReduce / Hive Approach | Modern Containerized Hadoop HDFS & WebHDFS (Our Implementation) |
 | :--- | :--- | :--- |
-| **System Resource Footprint**| Extremely High. Requires running heavy Java memory daemons (NameNode, Secondary NameNode, DataNodes), frequently causing OOM crashes on Windows environments. | **Ultra-Lightweight**: Files are stored natively on disk using partitioned directory hierarchies (`data_lake/`), zero Java runtime daemons required. |
-| **Query Engine Latency** | Slow Disk-Based MapReduce. Traditional Apache Hive queries require 30 to 60 seconds of compilation and startup time for simple SELECT aggregations. | **In-Memory Speed (10x-100x Faster)**: Apache Spark and Apache Flink execute vectorized real-time queries directly over compressed columnar Parquet blocks. |
-| **Operational Maintenance** | Complex configuration XMLs, permissions issues, and persistent block synchronization errors. | **Zero-Touch Automation**: Controlled via clean Python scripts (`create_lake_directories.py`) and standard operating system storage drivers. |
+| **System Resource Footprint**| Requires installing massive Java daemons natively across host machines, causing complex winutils.exe failures on Windows environments. | **Containerized & Encapsulated**: Hadoop NameNode and DataNode run cleanly isolated in Docker microservices with named block volumes (`hadoop_namenode`, `hadoop_datanode`). Zero Java required on Windows host! |
+| **Query Engine Latency** | Slow Disk-Based MapReduce jobs incurring heavy disk I/O and multirecord evaluation stalls. | **In-Memory Speed (10x-100x Faster)**: Apache Spark and PyFlink execute vectorized real-time queries directly over compressed columnar Parquet blocks stored in HDFS. |
+| **Operational Maintenance** | Complex configuration XMLs and manual binary installations. | **Zero-Touch Automation**: Controlled via clean Python scripts (`utils/hdfs_client.py`, `create_lake_directories.py`) leveraging high-speed HTTP REST streaming over port `9870`. |
 
 ---
 
@@ -50,6 +54,7 @@ In standard 2010-era Hadoop deployments, Data Lakes relied heavily on the Hadoop
                                      ▼
          ┌──────────────────────────────────────────────────────┐
          │              BRONZE TIER (Raw Telemetry)             │
+         │     Location: HDFS /data_lake/bronze/ (Port 9870)    │
          │  Format: .jsonl (Immutable Append-Only Log Buffers)  │
          └───────────────────────────┬──────────────────────────┘
                                      │
@@ -58,6 +63,7 @@ In standard 2010-era Hadoop deployments, Data Lakes relied heavily on the Hadoop
                                      ▼
          ┌──────────────────────────────────────────────────────┐
          │             SILVER TIER (Enriched Parquet)           │
+         │     Location: HDFS /data_lake/silver/ (Port 9870)    │
          │  Format: .parquet (Snappy-Compressed Columnar Store) │
          └───────────────────────────┬──────────────────────────┘
                                      │
@@ -66,6 +72,7 @@ In standard 2010-era Hadoop deployments, Data Lakes relied heavily on the Hadoop
                                      ▼
          ┌──────────────────────────────────────────────────────┐
          │          GOLD TIER (Executive BI & CEP Sinks)        │
+         │     Location: HDFS /data_lake/gold/   (Port 9870)    │
          │    Format: .parquet (Pre-Computed Analytical Tables) │
          └──────────────────────────────────────────────────────┘
 ```
@@ -74,10 +81,10 @@ In standard 2010-era Hadoop deployments, Data Lakes relied heavily on the Hadoop
 
 ## 4. Directory Hierarchy & Partitioning Strategy
 
-To eliminate full-table scanning bottlenecks, all layers enforce timestamped hive-style folder partitioning:
+To eliminate full-table scanning bottlenecks, all layers enforce timestamped hive-style folder partitioning directly within Hadoop HDFS blocks (`http://localhost:9870` -> Utilities -> Browse the file system):
 
 ```text
-data_lake/
+HDFS Root -> /data_lake/
 ├── bronze/
 │   ├── cart-events/
 │   ├── checkout-events/
@@ -107,9 +114,20 @@ data_lake/
 
 ## 5. File Formats & Compression Standards
 
-* **Bronze Tier (`.jsonl`)**: Utilizes line-delimited JSON format. Each line represents a self-describing, complete event payload. Guaranteed compatibility with streaming generators and Kafka dump utilities.
+* **Bronze Tier (`.jsonl`)**: Utilizes line-delimited JSON format. Each line represents a self-describing, complete event payload. Guaranteed compatibility with streaming generators and WebHDFS log appends.
 * **Silver & Gold Tiers (`.parquet`)**: Implements **Apache Parquet with Snappy Compression**:
-  * **Columnar Pruning**: Analytical queries reading `avg_unit_price` bypass scanning text fields or timestamps completely, drastically accelerating input/output throughput.
+  * **Columnar Pruning**: Analytical queries reading `avg_unit_price` bypass scanning text fields or timestamps completely, drastically accelerating HDFS block throughput.
+  * **Snappy Compression**: Achieves ~70% data volume compression while maintaining ultra-low decompression CPU cycles during live Streamlit UI rendering from HDFS.
+
+---
+
+## 6. Data Lifecycle & Resilience Integration
+
+* **Automated Factory Wiping**: By executing `scripts\clean_reset.bat`, the system purges all Docker database and HDFS named persistent volumes (`hadoop_namenode`, `hadoop_datanode`), and recreates pristine HDFS storage block structures using `scripts\create_lake_directories.py`.
+* **Hybrid HDFS Failover Coupling**: While Flink Job 4 simultaneously pushes security incidents into PostgreSQL and HDFS `/data_lake/gold/fraud_alerts_log/`, our Streamlit UI is engineered with resilient failover logic: if database services undergo reboot maintenance, dashboards immediately revert to querying HDFS Gold Parquet files via `utils/hdfs_client.py`. If the HDFS Docker cluster itself is offline during offline development testing, operations cleanly fall back to local folder mirrors (`data_lake/`)!
+
+---
+*End of Enterprise Hadoop HDFS Medallion Data Lake Storage Design Specification.*ghput.
   * **Snappy Compression**: Achieves ~70% data volume compression while maintaining ultra-low decompression CPU cycles during live Streamlit rendering.
 
 ---

@@ -5,7 +5,7 @@
 
 ## Table of Contents
 1. [Executive Overview & Architectural Paradigm](#1-executive-overview--architectural-paradigm)
-2. [Medallion Lakehouse Pipeline (Bronze → Silver → Gold)](#2-medallion-lakehouse-pipeline)
+2. [Medallion Distributed Data Lake Pipeline (Bronze → Silver → Gold)](#2-medallion-distributed-data-lake-pipeline)
 3. [Complete Repository Directory (Folders & Files)](#3-complete-repository-directory)
 4. [Deep-Dive: Engine Mechanics & Processing Workflows](#4-deep-dive-engine-mechanics--processing-workflows)
    - [Event Simulation & Ingestion Engine](#a-event-simulation--ingestion-engine-generator)
@@ -18,7 +18,7 @@
 
 ## 1. Executive Overview & Architectural Paradigm
 
-The **Real-Time E-Commerce Big Data Analytics Platform** is an industrial-grade, enterprise-scale data processing powerhouse modeled after modern hybrid data lakehouse architectures (the **Lambda / Medallion Paradigm**). It bridges high-throughput streaming transactions with deep historical batch aggregations, delivering real-time executive decision intelligence, sub-second security anomaly detection, and historical market reporting.
+The **Real-Time E-Commerce Big Data Analytics Platform** is an industrial-grade, enterprise-scale data processing powerhouse modeled after modern hybrid distributed data lake architectures (the **Lambda / Medallion Paradigm**). It bridges high-throughput streaming transactions with deep historical batch aggregations, delivering real-time executive decision intelligence, sub-second security anomaly detection, and historical market reporting.
 
 ```
        +--------------------------------------------------------+
@@ -55,7 +55,7 @@ The **Real-Time E-Commerce Big Data Analytics Platform** is an industrial-grade,
 
 ---
 
-## 2. Medallion Lakehouse Pipeline (Bronze → Silver → Gold)
+## 2. Medallion Distributed Data Lake Pipeline (Bronze → Silver → Gold)
 
 Our pipeline enforces continuous data refinement as streams propagate across three distinct storage tiers inside `data_lake/`:
 
@@ -94,7 +94,7 @@ Big Data_NTI\Final_Project\
 ├── docs\                        ── Architectural Specifications & System Documentation
 │   ├── 00_MASTER_PLATFORM_GUIDE.md ── (This file) Complete technical documentation and operational walkthrough
 │   ├── 01_Project_Overview.md   ── High-level system goals and Medallion specification design
-│   └── design\                  ── Technical whitepapers detailing Flink topologies and Medallion Lakehouse models
+│   └── design\                  ── Technical whitepapers detailing Flink topologies and Medallion Distributed Data Lake models
 ├── flink\                       ── Apache Flink Distributed Stream & CEP Processing Engine
 │   ├── run_streaming_workers.py ── Continuous background worker loop (executes pipeline checkpoints every 5 seconds)
 │   ├── job_1_validation_dlq.py  ── Schema verification and Dead-Letter Queue anomaly interceptor
@@ -163,7 +163,7 @@ This design allows the project to evolve toward fully distributed Flink executio
 ### C. Apache Spark Batch Analytics & Stream Fusion (`spark/`)
 Designed for macro analytical reporting over deep data archives, `batch_historical_analytics.py` (executed via `scripts\run_spark_batch.bat`) executes strategic aggregations:
 * **Resilient JVM-to-Pandas Failover Architecture**: Native PySpark depends on local Java Virtual Machines and Windows `winutils`. To guarantee 100% platform availability without crash scenarios, our engine is wrapped in resilient fail-safe logic: if a JVM is absent, it seamlessly transitions to an ultra-fast in-memory **Pandas Stream Fusion engine**!
-* **Lakehouse Stream Fusion & Market Price Elasticity**: Whenever executed, the engine loads our static master catalogs (**32,951 products** and **99,441 customers**) and scans the entire Data Lake for newly accumulated streaming transactions. It fuses real-time event volumes directly into historical catalog counts while injecting dynamic market pricing elasticity—shifting average unit prices (`avg_unit_price`) based on streaming order densities!
+* **Distributed Data Lake Stream Fusion & Market Price Elasticity**: Whenever executed, the engine loads our static master catalogs (**32,951 products** and **99,441 customers**) and scans the entire Data Lake for newly accumulated streaming transactions. It fuses real-time event volumes directly into historical catalog counts while injecting dynamic market pricing elasticity—shifting average unit prices (`avg_unit_price`) based on streaming order densities!
 
 ---
 
@@ -207,7 +207,7 @@ A specialized security command console designed for financial anomaly investigat
 ---
 
 ### 🏛️ Tab 4: Apache Spark Batch Historical Reports
-Demonstrates macro analytical integration via Lakehouse Stream Fusion:
+Demonstrates macro analytical integration via Distributed Data Lake Stream Fusion:
 * **Top Olist Product Categories by Sales Density**: A horizontal color-coded bar chart mapping item sales concentration against elastic average unit pricing across categories like `bed_bath_table`, `sports_leisure`, and `furniture_decor`.
 * **Customer Demographic & Loyalty Distribution**: A multi-series tiered histogram displaying customer populations clustered across top Brazilian economic states (`SP`, `RJ`, `MG`, `RS`), segmented by VIP loyalty tiers.
 * *Note*: This tab updates automatically whenever `scripts\run_spark_batch.bat` is executed!
@@ -221,7 +221,7 @@ The platform is managed via automated Windows batch utilities located in the `sc
 | Action / Workflow | Command to Execute in Terminal | Description & System Impact |
 | :--- | :--- | :--- |
 | **🚀 Launch Live Platform** | `scripts\setup_and_run_all.bat` | One-click automated launcher. Verifies virtual environment, starts Docker cluster, seeds database reference catalogs, runs Flink verification passes, and boots three background popup windows (Event Generator, Flink Streaming Workers, and Streamlit UI). |
-| **⚡ Update Batch Analytics** | `scripts\run_spark_batch.bat` | Executes Lakehouse Stream Fusion on demand. Fuses newly accumulated streaming transaction volume with master catalogs, updates pricing elasticity, and refreshes Tab 4 in Streamlit. |
+| **⚡ Update Batch Analytics** | `scripts\run_spark_batch.bat` | Executes Distributed Data Lake Stream Fusion on demand. Fuses newly accumulated streaming transaction volume with master catalogs, updates pricing elasticity, and refreshes Tab 4 in Streamlit. |
 | **🛑 Graceful Shutdown** | `scripts\stop_all.bat` | Safely powers down Docker containers (`docker-compose down`) and executes automated Windows `taskkill` instructions to immediately close all three open background popup windows and terminate local UI servers (0% lingering resource usage). |
 | **🧹 Factory Deep Reset** | `scripts\clean_reset.bat` | **USE WITH CAUTION**: Terminate all active streaming windows, purges persistent Docker database volume caches (`-v`), and deletes all transaction logs inside `data_lake/`, restoring the platform to a pristine zero-state baseline. |
 | **📊 DevOps Infrastructure UI** | `http://localhost:3000` | Open in browser to access containerized Grafana DevOps monitoring over PostgreSQL & Prometheus metrics. (**Login credentials: `admin` / `admin`**; click *Skip* on password reset prompt). |

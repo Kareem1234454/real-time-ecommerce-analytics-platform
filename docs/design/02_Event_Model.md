@@ -81,7 +81,7 @@ Consumed by Flink
 Enriched
     │
     ▼
-Stored in Medallion Lakehouse
+Stored in Medallion Distributed Data Lake
     │
     ▼
 Queried by PostgreSQL & Spark
